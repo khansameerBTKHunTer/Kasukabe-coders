@@ -23,13 +23,13 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 1. **Explainable Deterministic Priority Scoring:** AI vision provides provisional observations; priority is strictly computed via a deterministic 7-factor mathematical formula (totaling 100% normalized weight).
 2. **Duplicate Incident Correlation:** Automatic candidate matching within a 150m spatial radius using the Haversine formula, comparing hazard categories and textual keywords, with human confirmation (Confirm Duplicate vs Keep Separate).
 3. **Multi-Agency Department Routing:** Deterministic capability matching ensuring specialized hazards (e.g. fallen 11kV conductors in water) route to appropriate agencies (Electricity Department + Municipal Dewatering).
-4. **Command Center Dark UI:** Restrained glassmorphic interface built with Next.js 14 App Router, Tailwind CSS, Lucide icons, and interactive Leaflet map integration.
+4. **Command Center Dark UI:** Restrained glassmorphic interface built with Next.js 15 App Router, Tailwind CSS, Lucide icons, and interactive Leaflet map integration.
 
 ---
 
 ## 2. Technology Stack
 
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, Lucide React
+- **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, Lucide React
 - **Mapping:** Leaflet, OpenStreetMap, Client-isolated dynamic rendering
 - **Backend:** Next.js Server Actions & API Routes, Zod schema validation
 - **Database & Storage:** Supabase PostgreSQL, Supabase Auth, Row Level Security (RLS)
@@ -38,15 +38,17 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 
 ---
 
-## 3. Four User Roles & Demo Profiles
+## 3. User Roles & Demo Profiles
 
-The platform supports 4 distinct operational roles. Switch between them instantly via the role selector pill in the header:
+The demo supports six operational roles. Switch between them instantly via the role selector pill in the header:
 
 | Role | Demo User Profile | Responsibilities |
 |---|---|---|
 | **Control Room Admin** | `admin@civiscope.demo` (Command Chief Rahman) | Full command map, ranked queue, duplicate review, department assignment, priority overrides, incident verification. |
 | **Fire & Rescue** | `fire@civiscope.demo` (Captain Hossain) | Structural collapses, fire suppression, water rescue, assignment acknowledgment, response notes, incident resolution. |
 | **Electricity Dept** | `power@civiscope.demo` (Engr. Tariq) | High voltage line isolation, substation safety, transformer hazards, assignment acknowledgement, field status updates. |
+| **Municipal / Road Services** | `municipal@civiscope.demo` | Department incident queue and response updates. |
+| **Medical Response** | `medical@civiscope.demo` | Department incident queue and response updates. |
 | **Citizen** | `citizen@civiscope.demo` (Resident) | Submit geotagged field reports, upload disaster photos, track submission verification status. |
 
 ---
@@ -80,12 +82,9 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## 5. Supabase Database Setup & Migrations
 
-If connecting to a live Supabase project:
-1. Open your Supabase project SQL Editor.
-2. Execute the schema migration in `supabase/migrations/20241030_initial_schema.sql`.
-   - Creates `departments`, `profiles`, `incidents`, `reports`, `assignments`, and `activity_logs`.
-   - Configures indexes and Row Level Security (RLS) policies.
-3. Execute the Lakshmipur seed script in `supabase/seed.sql` to populate the initial scenario.
+Supabase configuration currently enables connection checks; the app still runs on demo profiles and an in-memory repository. Real login and persistence require backend integration.
+
+For the proposed role, approval, Auth-linking, and RLS changes, follow [the backend access review and rollout guide](supabase/ACCESS_REVIEW.md). Apply migrations in filename order in staging and review legacy profile IDs before rollout. The new migration has not been applied to the connected project. `seed.sql` is only a disposable demo fixture before access hardening.
 
 ---
 
@@ -134,7 +133,10 @@ $$\text{Priority Score} = \sum_{i=1}^{7} \left( \frac{\text{Weight}_i \times \te
 ### Install Dependencies:
 ```bash
 npm install
+npm audit
 ```
+
+The project uses patched Next.js 15 and Zod 4 releases. The PostCSS override keeps Next.js's nested dependency on the same patched version as the app. npm 12 script approvals are recorded in `package.json`: esbuild's binary setup is allowed for the reviewed version, and core-js's optional donation banner is denied. After updating esbuild, review its setup script and run `npm install-scripts approve esbuild` followed by `npm rebuild esbuild` to refresh the version approval. Avoid `npm audit fix --force` without reviewing the proposed major upgrades.
 
 ### Run Full Test Suite:
 ```bash

@@ -29,6 +29,14 @@ for (const width of [375, 768, 1440]) {
     await expect(page.getByRole('button', { name: 'Close incident details' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Open incident:/ })).toHaveCount(1);
     await fits();
+    await page.getByRole('combobox', { name: 'Active role' }).selectOption('municipal');
+    await expect(page.getByRole('heading', { name: /Municipal \/ Road Services/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open incident:/ })).toHaveCount(2);
+    await fits();
+    await page.getByRole('combobox', { name: 'Active role' }).selectOption('medical');
+    await expect(page.getByRole('heading', { name: /Medical Response/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open incident:/ })).toHaveCount(0);
+    await fits();
     await page.getByRole('combobox', { name: 'Active role' }).selectOption('citizen');
     await expect(page.getByRole('heading', { name: 'Citizen Emergency Report Form' })).toBeVisible();
     await page.getByRole('button', { name: /Commercial Building Structural Collapse/ }).click();

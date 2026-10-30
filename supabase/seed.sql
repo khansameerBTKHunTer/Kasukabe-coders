@@ -1,3 +1,12 @@
+-- LEGACY DEMO FIXTURE ONLY: run in a disposable database before hardening.
+-- Real profiles must be provisioned by Auth, never fixed demo UUIDs.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+    AND table_name = 'profiles' AND column_name = 'approval_status') THEN
+    RAISE EXCEPTION 'Legacy seed cannot run after access hardening. Use real Auth users and staging fixtures.';
+  END IF;
+END $$;
+
 -- ========================================================
 -- DAMAGE MAPPER (CIVISCOPE) — LAKSHMIPUR SCENARIO SEED DATA
 -- Fictional disaster simulation for Lakshmipur District

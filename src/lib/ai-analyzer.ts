@@ -177,7 +177,7 @@ Respond with ONLY a JSON object formatted strictly as follows:
     if (!validated.success) {
       return {
         success: false,
-        error: `AI response failed schema validation: ${validated.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ')}`,
+        error: `AI response failed schema validation: ${validated.error.issues.map(err => `${err.path.join('.')}: ${err.message}`).join(', ')}`,
       };
     }
 

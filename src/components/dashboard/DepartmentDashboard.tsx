@@ -23,7 +23,7 @@ const IncidentMap = dynamic(
 
 interface DepartmentDashboardProps {
   currentUser: Profile;
-  departmentCode: 'FIRE_RESCUE' | 'ELECTRICITY';
+  departmentCode: 'FIRE_RESCUE' | 'ELECTRICITY' | 'MUNICIPAL' | 'MEDICAL';
   departmentName: string;
   departments: Department[];
 }

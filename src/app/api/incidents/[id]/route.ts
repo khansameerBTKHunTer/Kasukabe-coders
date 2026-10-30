@@ -14,15 +14,16 @@ const PatchIncidentSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const incident = await IncidentService.getIncidentById(params.id);
+    const { id } = await params;
+    const incident = await IncidentService.getIncidentById(id);
     if (!incident) {
       return NextResponse.json({ success: false, error: 'Incident not found' }, { status: 404 });
     }
 
-    const activityLogs = await IncidentService.getActivityLogs(params.id);
+    const activityLogs = await IncidentService.getActivityLogs(id);
 
     return NextResponse.json({
       success: true,
@@ -36,9 +37,10 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const validated = PatchIncidentSchema.safeParse(body);
 
@@ -55,7 +57,7 @@ export async function PATCH(
       if (!verificationStatus) {
         return NextResponse.json({ success: false, error: 'Missing verificationStatus' }, { status: 400 });
       }
-      const updated = await IncidentService.verifyIncident(params.id, verificationStatus, userId);
+      const updated = await IncidentService.verifyIncident(id, verificationStatus, userId);
       return NextResponse.json({ success: true, incident: updated });
     }
 
@@ -67,7 +69,7 @@ export async function PATCH(
         );
       }
       const updated = await IncidentService.overridePriority(
-        params.id,
+        id,
         priorityScore,
         overrideReason,
         userId

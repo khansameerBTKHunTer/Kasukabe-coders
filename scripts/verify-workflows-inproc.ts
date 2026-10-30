@@ -137,7 +137,7 @@ async function run() {
       }),
     });
 
-    const res = await assignDept(req, { params: { id: newIncidentId } });
+    const res = await assignDept(req, { params: Promise.resolve({ id: newIncidentId }) });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Assignment failed');
     if (data.assignment.assignment_status !== 'pending') {
@@ -156,7 +156,7 @@ async function run() {
       }),
     });
 
-    const res = await updateAssignment(req, { params: { id: assignmentId } });
+    const res = await updateAssignment(req, { params: Promise.resolve({ id: assignmentId }) });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Acknowledgement failed');
     if (data.assignment.assignment_status !== 'acknowledged') {
@@ -176,7 +176,7 @@ async function run() {
       }),
     });
 
-    const res = await updateAssignment(req, { params: { id: assignmentId } });
+    const res = await updateAssignment(req, { params: Promise.resolve({ id: assignmentId }) });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Status update failed');
     if (data.assignment.assignment_status !== 'in_progress') {
@@ -196,7 +196,7 @@ async function run() {
       }),
     });
 
-    const res = await patchIncident(req, { params: { id: newIncidentId } });
+    const res = await patchIncident(req, { params: Promise.resolve({ id: newIncidentId }) });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Override failed');
     if (data.incident.priority_score !== 91.0) {
@@ -218,10 +218,10 @@ async function run() {
       }),
     });
 
-    await patchIncident(reqVerify, { params: { id: newIncidentId } });
+    await patchIncident(reqVerify, { params: Promise.resolve({ id: newIncidentId }) });
 
     const reqDetail = new NextRequest(`http://localhost:3000/api/incidents/${newIncidentId}`);
-    const resDetail = await getIncidentDetail(reqDetail, { params: { id: newIncidentId } });
+    const resDetail = await getIncidentDetail(reqDetail, { params: Promise.resolve({ id: newIncidentId }) });
     const dataDetail = await resDetail.json();
 
     if (!dataDetail.success) throw new Error('Failed to fetch details');

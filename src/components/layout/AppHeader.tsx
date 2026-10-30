@@ -49,6 +49,8 @@ export const AppHeader: React.FC = () => {
         return <Flame className="w-3.5 h-3.5 text-red-400" />;
       case 'electricity':
         return <Zap className="w-3.5 h-3.5 text-amber-400" />;
+      case 'municipal':
+      case 'medical':
       case 'citizen':
         return <Users className="w-3.5 h-3.5 text-emerald-400" />;
     }
@@ -123,6 +125,8 @@ export const AppHeader: React.FC = () => {
             <option value="admin">Control Room Admin</option>
             <option value="fire_rescue">Fire &amp; Rescue</option>
             <option value="electricity">Electricity Dept</option>
+            <option value="municipal">Municipal / Road Services</option>
+            <option value="medical">Medical Response</option>
             <option value="citizen">Citizen Portal</option>
           </select>
         </div>

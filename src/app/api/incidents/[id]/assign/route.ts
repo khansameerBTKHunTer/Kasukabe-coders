@@ -3,16 +3,18 @@ import { IncidentService } from '@/lib/data-store';
 import { z } from 'zod';
 
 const AssignDepartmentSchema = z.object({
-  departmentId: z.string().uuid(),
+  // Seed departments use UUID-shaped identifiers without RFC version bits.
+  departmentId: z.guid(),
   assignedBy: z.string().optional(),
   notes: z.string().optional(),
 });
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const validated = AssignDepartmentSchema.safeParse(body);
 
@@ -25,7 +27,7 @@ export async function POST(
 
     const { departmentId, assignedBy, notes } = validated.data;
     const assignment = await IncidentService.assignDepartment(
-      params.id,
+      id,
       departmentId,
       assignedBy,
       notes

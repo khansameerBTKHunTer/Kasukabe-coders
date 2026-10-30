@@ -11,9 +11,10 @@ const UpdateAssignmentSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const validated = UpdateAssignmentSchema.safeParse(body);
 
@@ -27,7 +28,7 @@ export async function PATCH(
     const { action, status, notes, userId } = validated.data;
 
     if (action === 'acknowledge') {
-      const assignment = await IncidentService.acknowledgeAssignment(params.id, userId);
+      const assignment = await IncidentService.acknowledgeAssignment(id, userId);
       return NextResponse.json({ success: true, assignment });
     }
 
@@ -35,7 +36,7 @@ export async function PATCH(
       if (!status) {
         return NextResponse.json({ success: false, error: 'Missing status' }, { status: 400 });
       }
-      const assignment = await IncidentService.updateResponseStatus(params.id, status, notes, userId);
+      const assignment = await IncidentService.updateResponseStatus(id, status, notes, userId);
       return NextResponse.json({ success: true, assignment });
     }
 

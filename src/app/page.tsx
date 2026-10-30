@@ -47,6 +47,18 @@ export default function Home() {
         />
       );
 
+    case 'municipal':
+    case 'medical':
+      return (
+        <DepartmentDashboard
+          key={currentProfile.id}
+          currentUser={currentProfile}
+          departmentCode={currentProfile.role === 'municipal' ? 'MUNICIPAL' : 'MEDICAL'}
+          departmentName={currentProfile.role === 'municipal' ? 'Municipal / Road Services' : 'Medical Response'}
+          departments={departments}
+        />
+      );
+
     case 'citizen':
       return <CitizenPortal currentUser={currentProfile} />;
 

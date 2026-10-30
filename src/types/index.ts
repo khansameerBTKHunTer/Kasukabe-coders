@@ -1,4 +1,4 @@
-export type UserRole = 'citizen' | 'fire_rescue' | 'electricity' | 'admin';
+export type UserRole = 'citizen' | 'fire_rescue' | 'electricity' | 'municipal' | 'medical' | 'admin';
 
 export type IncidentCategory = 
   | 'flood' 
@@ -32,11 +32,14 @@ export interface Department {
   created_at?: string;
 }
 
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface Profile {
   id: string;
   email?: string;
   display_name: string;
   role: UserRole;
+  approval_status: ApprovalStatus;
   department_id?: string | null;
   department?: Department | null;
   created_at?: string;
