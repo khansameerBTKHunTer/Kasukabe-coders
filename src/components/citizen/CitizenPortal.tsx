@@ -1,63 +1,82 @@
-'use client';
+"use client";
+import Image from "next/image";
 
-import React, { useState, useEffect } from 'react';
-import { ReportForm } from './ReportForm';
-import { Report, Profile } from '@/types';
-import { 
-  FileText, 
-  PlusCircle, 
-  Clock, 
-  MapPin, 
-  CheckCircle2, 
+import React, { useState, useEffect, useCallback } from "react";
+import { ReportForm } from "./ReportForm";
+import { Report, Profile } from "@/types";
+import {
+  FileText,
+  PlusCircle,
+  Clock,
+  MapPin,
+  CheckCircle2,
   AlertCircle,
   ShieldCheck,
-  RefreshCw 
-} from 'lucide-react';
-import { VerificationBadge } from '../ui/StatusBadge';
+  RefreshCw,
+} from "lucide-react";
+import { IncidentStatusBadge, VerificationBadge } from "../ui/StatusBadge";
 
-export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({ currentUser }) => {
-  const [activeTab, setActiveTab] = useState<'report' | 'my_reports'>('report');
-  const [reports, setReports] = useState<Report[]>([]);
+export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({
+  currentUser,
+}) => {
+  const [activeTab, setActiveTab] = useState<"report" | "my_reports">("report");
+  const [reports, setReports] = useState<
+    (Report & {
+      incident_status?: import("@/types").IncidentStatus;
+      incident_updated_at?: string;
+    })[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/incidents');
+      setError("");
+      const res = await fetch("/api/reports", { cache: "no-store" });
       const data = await res.json();
-      if (data.success) {
-        // Collect citizen reports
-        const allReports: Report[] = [];
-        data.incidents.forEach((inc: any) => {
-          if (inc.reports) {
-            allReports.push(...inc.reports);
-          }
-        });
-        setReports(allReports.filter(report => report.reporter_id === currentUser.id));
-      }
-    } catch (err) {
-      console.error('Failed to load reports', err);
+      if (!res.ok || !data.success || !Array.isArray(data.reports))
+        throw new Error(data.error || "Unable to retrieve your reports.");
+      setReports(
+        data.reports.filter(
+          (report: Report) => report.reporter_id === currentUser.id,
+        ),
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to retrieve your reports. Use Refresh to retry.",
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentUser.id]);
 
   useEffect(() => {
     fetchReports();
-  }, []);
+  }, [fetchReports]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
+      {error && (
+        <p
+          role="alert"
+          className="rounded border border-red-200 p-3 text-sm text-red-700"
+        >
+          {error}
+        </p>
+      )}
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 items-center justify-between border-b border-slate-800 pb-2">
+      <div className="flex flex-wrap gap-2 items-center justify-between border-b border-slate-200 pb-2">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setActiveTab('report')}
+            onClick={() => setActiveTab("report")}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
-              activeTab === 'report'
-                ? 'bg-sky-500 text-slate-950 shadow-glow'
-                : 'text-slate-400 hover:text-white bg-slate-900/60'
+              activeTab === "report"
+                ? "bg-blue-600 text-white shadow-glow"
+                : "text-slate-500 hover:text-slate-900 bg-white/60"
             }`}
           >
             <PlusCircle className="w-4 h-4" />
@@ -67,13 +86,13 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({ currentUser 
           <button
             type="button"
             onClick={() => {
-              setActiveTab('my_reports');
+              setActiveTab("my_reports");
               fetchReports();
             }}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
-              activeTab === 'my_reports'
-                ? 'bg-sky-500 text-slate-950 shadow-glow'
-                : 'text-slate-400 hover:text-white bg-slate-900/60'
+              activeTab === "my_reports"
+                ? "bg-blue-600 text-white shadow-glow"
+                : "text-slate-500 hover:text-slate-900 bg-white/60"
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -81,27 +100,32 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({ currentUser 
           </button>
         </div>
 
-        {activeTab === 'my_reports' && (
+        {activeTab === "my_reports" && (
           <button
             onClick={fetchReports}
             disabled={isLoading}
-            className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 p-1.5"
+            className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1.5 p-1.5"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`}
+            />
             <span>Refresh Status</span>
           </button>
         )}
       </div>
 
       {/* Main View */}
-      {activeTab === 'report' ? (
+      {activeTab === "report" ? (
         <ReportForm onSuccess={() => fetchReports()} />
       ) : (
         <div className="space-y-4">
-          <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
-            <h3 className="text-sm font-bold text-white">Disaster Report Tracking</h3>
-            <p className="text-xs text-slate-400">
-              Live status updates on your field submissions as control room personnel triage, verify, and dispatch responders.
+          <div className="glass-panel p-4 rounded-xl border border-slate-200 space-y-1">
+            <h3 className="text-sm font-bold text-slate-900">
+              Disaster Report Tracking
+            </h3>
+            <p className="text-xs text-slate-500">
+              Live status updates on your field submissions as control room
+              personnel triage, verify, and dispatch responders.
             </p>
           </div>
 
@@ -109,53 +133,68 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({ currentUser 
             {reports.map((report) => (
               <div
                 key={report.id}
-                className="p-4 rounded-xl glass-card border border-slate-800 flex flex-col md:flex-row gap-4 items-start"
+                className="p-4 rounded-xl glass-card border border-slate-200 flex flex-col md:flex-row gap-4 items-start"
               >
-                <img
+                <Image
+                  unoptimized
+                  width={800}
+                  height={448}
                   src={report.image_path}
                   alt="Report evidence"
-                  className="w-full md:w-36 h-28 object-cover rounded-lg border border-slate-700 bg-black shrink-0"
+                  className="w-full md:w-36 h-28 object-cover rounded-lg border border-slate-200 bg-black shrink-0"
                 />
 
                 <div className="flex-1 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-mono font-bold text-sky-400">
+                    <span className="text-xs font-mono font-bold text-blue-600">
                       Report #{report.id.slice(0, 12)}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono text-slate-400">
-                        {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                      <span className="text-[11px] font-mono text-slate-500">
+                        {new Date(report.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </span>
                       <VerificationBadge status={report.verification_status} />
+                      {report.incident_status && (
+                        <IncidentStatusBadge status={report.incident_status} />
+                      )}
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-200 line-clamp-2">
+                  <p className="text-xs text-slate-700 line-clamp-2">
                     {report.description}
                   </p>
 
-                  <div className="p-2 rounded bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-300">
-                    <span className="font-semibold text-slate-400">Assistance Requested: </span>
+                  <div className="p-2 rounded bg-slate-50/60 border border-slate-200/80 text-[11px] text-slate-700">
+                    <span className="font-semibold text-slate-500">
+                      Assistance Requested:{" "}
+                    </span>
                     {report.assistance_needed}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                  <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
                     <span className="flex items-center gap-1 font-mono">
-                      <MapPin className="w-3 h-3 text-sky-400" />
-                      {report.incident_latitude.toFixed(4)}°N, {report.incident_longitude.toFixed(4)}°E
+                      <MapPin className="w-3 h-3 text-blue-600" />
+                      {report.incident_latitude.toFixed(4)}°N,{" "}
+                      {report.incident_longitude.toFixed(4)}°E
                     </span>
 
-                    <span className="text-slate-400 capitalize">
-                      Source: {report.source_type.replace('_', ' ')}
+                    <span className="text-slate-500 capitalize">
+                      Source: {report.source_type.replace("_", " ")}
                     </span>
                   </div>
                 </div>
               </div>
             ))}
 
-            {reports.length === 0 && (
+            {!isLoading && !error && reports.length === 0 && (
               <div className="p-12 text-center text-xs text-slate-500 glass-panel rounded-xl">
-                No submitted disaster reports found. Use the &quot;Submit Emergency Report&quot; tab to report a localized hazard.
+                No submitted disaster reports found. Use the &quot;Submit
+                Emergency Report&quot; tab to report a localized hazard.
               </div>
             )}
           </div>

@@ -73,7 +73,7 @@ export function generateSitRep(snapshot: SitRepSnapshot): ArrayBuffer {
   text(`Awaiting assignment: ${s.awaitingAssignment} | Active responses: ${s.activeResponses}`);
   const active = snapshot.incidents.filter(i => !['resolved', 'closed'].includes(i.status));
   text(`Active incidents: ${active.length} | Resolved / closed: ${s.total - active.length}`);
-  text('KPI definitions: Critical/High include all incident statuses. Awaiting assignment means open incidents. Active responses count acknowledged or in-progress department assignments.');
+  text('KPI definitions: Critical/High include all incident statuses. Awaiting assignment means open incidents. Active responses count acknowledged, en-route, on-site, or in-progress department assignments.');
 
   section('2. Active high-priority incident breakdown');
   const urgent = active.filter(i => i.priority_band === 'Critical' || i.priority_band === 'High')

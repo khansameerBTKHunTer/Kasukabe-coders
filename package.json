@@ -6,10 +6,15 @@
     "dev": "node scripts/serve.mjs dev",
     "build": "next build",
     "start": "node scripts/serve.mjs start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test:engine": "node --import tsx scripts/test-engine.ts && node --import tsx scripts/test-sitrep.ts && node --import tsx scripts/test-regressions.ts",
     "test:browser": "playwright test",
-    "test:startup": "node scripts/check-startup.mjs"
+    "test:startup": "node scripts/check-startup.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:database": "node scripts/test-database.mjs",
+    "test:api": "node --import tsx scripts/test-api.ts",
+    "dev:demo": "CIVISCOPE_DEMO_MODE=true npm run dev",
+    "test:vision": "node --import tsx scripts/test-vision.ts"
   },
   "imports": {
     "@/*": "./src/*"
@@ -29,12 +34,15 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
     "@playwright/test": "^1.64.1",
     "@types/leaflet": "^1.9.14",
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.28",
     "postcss": "^8.5.32",
     "tailwindcss": "^3.4.14",
     "tsx": "^4.23.15",
@@ -42,7 +50,8 @@
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "core-js": false
+    "core-js": false,
+    "unrs-resolver": false
   },
   "overrides": {
     "postcss": "$postcss"

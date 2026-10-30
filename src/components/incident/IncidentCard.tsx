@@ -25,7 +25,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
       className={`w-full text-left p-4 rounded-xl cursor-pointer transition-all border ${
         isSelected
           ? 'glass-panel-elevated border-sky-400/80 shadow-glow'
-          : 'glass-card hover:border-slate-700'
+          : 'glass-card hover:border-slate-200'
       }`}
     >
       {/* Top row: Priority & Status Badges */}
@@ -42,39 +42,39 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
       </div>
 
       {/* Title & Category */}
-      <h3 className="text-sm font-semibold text-white line-clamp-1 mb-1">
+      <h3 className="text-sm font-semibold text-slate-900 line-clamp-1 mb-1">
         {incident.title}
       </h3>
 
       {/* Description Snippet */}
-      <p className="text-xs text-slate-400 line-clamp-2 mb-2.5">
+      <p className="text-xs text-slate-500 line-clamp-2 mb-2.5">
         {incident.description}
       </p>
 
       {/* Footer Info Row */}
-      <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80 gap-1.5">
+      <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200/80 gap-1.5">
         <span className="flex items-center gap-1 font-mono">
-          <MapPin className="w-3 h-3 text-sky-400" />
+          <MapPin className="w-3 h-3 text-blue-600" />
           {incident.latitude.toFixed(3)}°, {incident.longitude.toFixed(3)}°
         </span>
 
         {incident.primary_department && (
-          <span className="flex items-center gap-1 text-slate-300">
-            <Building2 className="w-3 h-3 text-amber-400" />
+          <span className="flex items-center gap-1 text-slate-700">
+            <Building2 className="w-3 h-3 text-amber-700" />
             {incident.primary_department.name}
           </span>
         )}
 
         <div className="flex items-center gap-2">
           {incident.evidence_count && incident.evidence_count > 1 ? (
-            <span className="flex items-center gap-1 text-blue-400">
+            <span className="flex items-center gap-1 text-blue-700">
               <Layers className="w-3 h-3" />
               {incident.evidence_count} photos
             </span>
           ) : null}
 
           {incident.ai_confidence > 0 && (
-            <span className="flex items-center gap-1 text-sky-400 font-mono">
+            <span className="flex items-center gap-1 text-blue-600 font-mono">
               <Sparkles className="w-3 h-3" />
               {Math.round(incident.ai_confidence * 100)}%
             </span>

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { IncidentService } from '@/lib/data-store';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import { getBackend } from "@/lib/backend";
+import { apiError } from "@/lib/auth/server";
+import { z } from "zod";
 
 const AssignDepartmentSchema = z.object({
   // Seed departments use UUID-shaped identifiers without RFC version bits.
@@ -11,17 +12,22 @@ const AssignDepartmentSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const IncidentService = await getBackend(req, true);
     const { id } = await params;
     const body = await req.json();
     const validated = AssignDepartmentSchema.safeParse(body);
 
     if (!validated.success) {
       return NextResponse.json(
-        { success: false, error: 'Validation error', details: validated.error.format() },
-        { status: 400 }
+        {
+          success: false,
+          error: "Validation error",
+          details: validated.error.format(),
+        },
+        { status: 400 },
       );
     }
 
@@ -30,11 +36,11 @@ export async function POST(
       id,
       departmentId,
       assignedBy,
-      notes
+      notes,
     );
 
     return NextResponse.json({ success: true, assignment }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return apiError(err);
   }
 }

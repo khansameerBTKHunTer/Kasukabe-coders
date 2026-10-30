@@ -621,8 +621,8 @@ export const IncidentService = {
       description: params.description,
       incident_latitude: params.incidentLatitude,
       incident_longitude: params.incidentLongitude,
-      reporter_latitude: params.reporterLatitude || null,
-      reporter_longitude: params.reporterLongitude || null,
+      reporter_latitude: params.reporterLatitude ?? null,
+      reporter_longitude: params.reporterLongitude ?? null,
       source_type: params.sourceType,
       assistance_needed: params.assistanceNeeded,
       reported_people_affected: params.reportedPeopleAffected || null,
@@ -809,9 +809,11 @@ export const IncidentService = {
     };
 
     store.assignments.unshift(newAssignment);
-    incident.primary_department_id = departmentId;
-    incident.primary_department = department;
-    incident.status = 'assigned';
+    if (!incident.primary_department_id) {
+      incident.primary_department_id = departmentId;
+      incident.primary_department = department;
+    }
+    if (incident.status !== 'in_progress') incident.status = 'assigned';
     incident.updated_at = new Date().toISOString();
 
     store.activityLogs.unshift({

@@ -1,0 +1,37 @@
+# Light interface, location picker, and automatic vision analysis
+
+Implemented from the user's clarified choices: the citizen report fills the available desktop width, with a compact right-hand location column around one quarter of the workspace. Evidence, editable AI suggestions, context, and submission occupy the remainder. On smaller screens the panels stack. Authentication, citizen, department, and Control Room pages share a light palette and full-width application shell.
+
+## Map and device location
+
+The picker had collapsed because a global `.leaflet-container { height: 100% }` rule overrode the height utility on the same element without a definite parent height. The picker now has a dedicated 300–320 px frame and an absolutely positioned Leaflet canvas. Tests measure its actual bounding box, not merely the presence of map markup.
+
+The coordinate input boxes have been removed. Click the map or drag the red incident pin. `Use live location` starts device location tracking after browser permission. If permission is already granted, the reporting screen can start tracking automatically. The blue marker/accuracy circle represents the device; the red pin represents the hazard. The first requested fix positions the incident, while later device updates preserve any manually selected hazard. `Center on device` explicitly selects the latest fix again. Stop tracking with the adjacent stop button; watchers are cleaned up when the form unmounts. No location is fabricated when device position is unavailable.
+
+Nearest mapped addresses appear below the pin. Failed address lookup does not erase coordinates or block report submission. The user deliberately selected public Nominatim for this small demo after reviewing its [usage policy](https://operations.osmfoundation.org/policies/nominatim/). The backend caches repeated locations, serializes lookups to at most one per 1.1 seconds, caps the queue, identifies CIVISCOPE in its User-Agent, and exposes `GEOCODING_BASE_URL`/`GEOCODING_USER_AGENT` for changing providers. Attribution is visible. Live device updates do not trigger periodic address calls; lookup follows the initially selected position or an explicit map/pin action. For multiple server instances or larger traffic, use a managed/self-hosted provider or a shared limiter to maintain the service-wide limit. A reverse-geocoded label is the nearest mapped address, not a guarantee of an exact building entrance.
+
+One real lookup at the public reference location completed successfully. Automated tests mock address responses and do not consume public-service quota.
+
+## Vision flow
+
+`AI_PROVIDER=gemini` selects the native Google AI Studio API with `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3.5-flash-lite`. The OpenRouter integration remains available through `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL`. Google AI Studio keys are never sent to OpenRouter. Selection uploads the real image, then automatically requests `/api/ai/analyze` using the same authenticated account. This works through the configured provider in demo mode as explicitly requested. The UI says the image is sent to the vision provider. JSON output is validated, damage and assistance suggestions remain editable, and late responses do not overwrite user edits. Selecting another image cancels the old browser work and ignores stale responses.
+
+The structured response includes assistance suggestions, severity, confidence, potential secondary hazards, and uncertainties. The form does not fabricate an assessment on failure. The original seven-factor priority calculation still runs on the server with the observed/AI evidence and the citizen's danger/people/context fields. New evidence is not automatically considered verified, safe, or dispatched.
+
+Successful analysis is cached by authenticated actor, immutable uploaded-photo path, and model for 15 minutes. Submission reuses it, and concurrent requests share a pending call. The provider key remains server-only. Provider errors are sanitized; manual reporting remains available.
+
+**Real-provider check:** the Google key passed the native model-list check (HTTP 200), and a real `gemini-3.5-flash-lite` image request returned a valid structured assessment and editable assistance text. The decorative generated city was classified `other` / `low` rather than invented damage. No disaster report or account was created. The previous OpenRouter 401 was a provider mismatch; the key was issued by Google AI Studio. The existing saved value was moved to `GEMINI_API_KEY`, and `AI_PROVIDER`/`GEMINI_MODEL` were set without printing the key or changing Supabase credentials. The new key could list 2.5 Flash but generation returned 404; the current [stable Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) supports images and completed the check successfully.
+
+## Login image
+
+The locally served asset is `public/images/civiscope-city-background.webp` (about 248 KB). It was generated with the built-in image generation tool, then encoded as WebP for the application. No third-party runtime image request is needed. The login form remains focused on account access; the image fills the surrounding window.
+
+Final generation prompt:
+
+> Use case: photorealistic-natural. Asset type: background image for the existing CIVISCOPE civic disaster-response application login page. Generate a wide landscape aerial photograph of a calm South Asian riverside city, woven pale stone and cream low-rise buildings, a curving broad river, modest bridges, abundant trees, viewed from high above at soft early morning light. Refined editorial architectural photography, realistic geography, muted sage green, warm ivory and pale blue palette, natural atmospheric depth, subtle film grain. Detailed buildings and river on the left two thirds, quieter soft atmospheric detail on right where a login card can overlay. Bright light theme, restrained contrast, elegant and calm, not dramatic. This is a decorative fictional city, no claims of actual disaster monitoring. No text, no labels, no logos, no interface, no people in closeup, no visible damage or distress. Output landscape 1536 by 1024 or wider suitable for a full-screen background.
+
+## Checks
+
+`npm run test:vision` tests structured vision responses, assistance autofill, cache reuse during submission, provider error handling, address caching, and request spacing with network mocks. Browser regressions cover real map dimensions and quarter-width desktop layout, pin/address selection, location denial, live-device versus incident-pin behavior, automatic suggestions, preserving manual edits, and the local login background. Existing auth, role, report, response, database, PDF, and workflow checks are retained.
+
+Final verification: all 32 browser tests passed; TypeScript, ESLint, engine/PDF regressions, API security tests, mocked Gemini/OpenRouter and geocoding tests, isolated database tests, all 10 in-process workflow checks, and the production build passed. The browser suite used empty provider keys in its server process and mocked AI/address responses to avoid paid calls or address-service quota. Separate authorized checks completed one real native Gemini image analysis and one real Nominatim lookup. Browser screenshots were inspected at `test-results/citizen-light-desktop.png` and `test-results/login-light-desktop.png`. No Supabase migration, project setting, account registration, or deployment was performed for this interface update.

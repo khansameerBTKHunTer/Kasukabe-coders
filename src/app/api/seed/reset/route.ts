@@ -1,14 +1,17 @@
-import { NextResponse } from 'next/server';
-import { resetStore } from '@/lib/data-store';
-
-export async function POST() {
+import { NextRequest, NextResponse } from "next/server";
+import { resetStore } from "@/lib/data-store";
+import { ApiError, apiError, requireActor } from "@/lib/auth/server";
+export async function POST(request: NextRequest) {
   try {
+    const actor = await requireActor(request, true);
+    if (!actor.demo)
+      throw new ApiError(403, "Reset is only available in the isolated demo.");
     resetStore();
     return NextResponse.json({
       success: true,
-      message: 'Lakshmipur simulated disaster scenario successfully reset (6 reports, 4 distinct incidents).',
+      message: "Fictional demo scenario reset.",
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (error) {
+    return apiError(error);
   }
 }

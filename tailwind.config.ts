@@ -10,47 +10,47 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0d14",
-        foreground: "#f1f5f9",
+        background: "#f4f6f8",
+        foreground: "#172b3a",
         card: {
-          DEFAULT: "rgba(15, 23, 42, 0.75)",
-          foreground: "#f8fafc",
-          border: "rgba(255, 255, 255, 0.08)",
+          DEFAULT: "#ffffff",
+          foreground: "#172b3a",
+          border: "#e2e8f0",
         },
         popover: {
-          DEFAULT: "#0f172a",
-          foreground: "#f8fafc",
+          DEFAULT: "#ffffff",
+          foreground: "#172b3a",
         },
         primary: {
-          DEFAULT: "#38bdf8", // Sky / cyan accent
-          foreground: "#030712",
-          hover: "#0284c7",
+          DEFAULT: "#2563eb", // Sky / cyan accent
+          foreground: "#ffffff",
+          hover: "#1d4ed8",
         },
         secondary: {
-          DEFAULT: "#1e293b",
+          DEFAULT: "#f1f5f9",
           foreground: "#94a3b8",
         },
         muted: {
-          DEFAULT: "#1e293b",
+          DEFAULT: "#f1f5f9",
           foreground: "#64748b",
         },
         accent: {
           DEFAULT: "#2563eb",
-          foreground: "#f8fafc",
+          foreground: "#172b3a",
         },
         destructive: {
           DEFAULT: "#ef4444",
-          foreground: "#f8fafc",
+          foreground: "#172b3a",
         },
-        border: "rgba(255, 255, 255, 0.1)",
-        input: "rgba(255, 255, 255, 0.06)",
+        border: "#e2e8f0",
+        input: "#f8fafc",
         ring: "#38bdf8",
         // Disaster severity status bands
         severity: {
           critical: "#ef4444", // Red (80-100)
-          high: "#f97316",     // Orange (60-79.99)
-          medium: "#eab308",   // Amber (35-59.99)
-          low: "#10b981",      // Emerald (0-34.99)
+          high: "#f97316", // Orange (60-79.99)
+          medium: "#eab308", // Amber (35-59.99)
+          low: "#10b981", // Emerald (0-34.99)
         },
       },
       borderRadius: {
@@ -59,8 +59,8 @@ const config: Config = {
         sm: "0.375rem",
       },
       boxShadow: {
-        glow: "0 0 20px -5px rgba(56, 189, 248, 0.25)",
-        "critical-glow": "0 0 20px -5px rgba(239, 68, 68, 0.35)",
+        glow: "0 1px 3px rgba(23, 43, 58, 0.08)",
+        "critical-glow": "0 1px 3px rgba(23, 43, 58, 0.08)",
       },
     },
   },

@@ -1,28 +1,38 @@
-export type UserRole = 'citizen' | 'fire_rescue' | 'electricity' | 'municipal' | 'medical' | 'admin';
+export type UserRole =
+  "citizen" | "fire_rescue" | "electricity" | "municipal" | "medical" | "admin";
 
-export type IncidentCategory = 
-  | 'flood' 
-  | 'building_damage' 
-  | 'electrical_hazard' 
-  | 'fire' 
-  | 'landslide' 
-  | 'road_blockage' 
-  | 'medical_emergency' 
-  | 'other';
+export type IncidentCategory =
+  | "flood"
+  | "building_damage"
+  | "electrical_hazard"
+  | "fire"
+  | "landslide"
+  | "road_blockage"
+  | "medical_emergency"
+  | "other";
 
-export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low';
+export type SeverityLevel = "critical" | "high" | "medium" | "low";
 
-export type PriorityBand = 'Critical' | 'High' | 'Medium' | 'Low';
+export type PriorityBand = "Critical" | "High" | "Medium" | "Low";
 
-export type VerificationStatus = 'unverified' | 'verified' | 'flagged' | 'rejected';
+export type VerificationStatus =
+  "unverified" | "verified" | "flagged" | "rejected";
 
-export type IncidentStatus = 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
+export type IncidentStatus =
+  "open" | "assigned" | "in_progress" | "resolved" | "closed";
 
-export type AssignmentStatus = 'pending' | 'acknowledged' | 'in_progress' | 'resolved' | 'rejected';
+export type AssignmentStatus =
+  | "pending"
+  | "acknowledged"
+  | "en_route"
+  | "on_site"
+  | "in_progress"
+  | "resolved"
+  | "rejected";
 
-export type SourceType = 'on_site' | 'field_report' | 'news_public';
+export type SourceType = "on_site" | "field_report" | "news_public";
 
-export type ImmediateDanger = 'yes' | 'no' | 'unknown';
+export type ImmediateDanger = "yes" | "no" | "unknown";
 
 export interface Department {
   id: string;
@@ -32,7 +42,7 @@ export interface Department {
   created_at?: string;
 }
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface Profile {
   id: string;
@@ -53,6 +63,7 @@ export interface AIAssessment {
   severity: SeverityLevel;
   confidence: number;
   recommended_departments: string[];
+  assistance_required?: string;
   life_risk_indicators: string[];
   critical_infrastructure_indicators: string[];
   uncertainties: string[];
@@ -118,7 +129,7 @@ export interface Report {
   assistance_needed: string;
   reported_people_affected?: number | null;
   immediate_danger: ImmediateDanger;
-  verification_status: 'unverified' | 'verified' | 'rejected';
+  verification_status: "unverified" | "verified" | "rejected";
   created_at: string;
   distance_to_incident_meters?: number;
 }
@@ -154,6 +165,6 @@ export interface DuplicateMatch {
   distanceMeters: number;
   categoryMatch: boolean;
   similarityScore: number;
-  duplicateConfidence: 'high' | 'moderate' | 'unlikely';
+  duplicateConfidence: "high" | "moderate" | "unlikely";
   reasons: string[];
 }

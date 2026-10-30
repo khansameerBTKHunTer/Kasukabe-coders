@@ -1,245 +1,479 @@
-'use client';
-
-import React, { useEffect, useRef, useState } from 'react';
-import { Locate, MapPin, AlertCircle } from 'lucide-react';
-
-interface LocationPickerProps {
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Crosshair,
+  LocateFixed,
+  MapPin,
+  Navigation,
+  Square,
+} from "lucide-react";
+import type * as Leaflet from "leaflet";
+interface Coords {
+  lat: number;
+  lng: number;
+}
+interface Props {
   initialLat?: number;
   initialLng?: number;
   onLocationChange: (lat: number, lng: number) => void;
   onReporterLocationFound?: (lat: number, lng: number) => void;
+  onAddressChange?: (address: string) => void;
 }
-
-export const LocationPickerMap: React.FC<LocationPickerProps> = ({
-  initialLat = 22.9447,
-  initialLng = 90.8282,
+export function LocationPickerMap({
+  initialLat,
+  initialLng,
   onLocationChange,
   onReporterLocationFound,
-}) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const reporterMarkerRef = useRef<any>(null);
-  const leafletModuleRef = useRef<any>(null);
-  const locationChangeRef = useRef(onLocationChange);
-  locationChangeRef.current = onLocationChange;
-
-  const [coords, setCoords] = useState<{ lat: number; lng: number }>({
-    lat: initialLat,
-    lng: initialLng,
+  onAddressChange,
+}: Props) {
+  const container = useRef<HTMLDivElement>(null);
+  const map = useRef<Leaflet.Map | null>(null),
+    marker = useRef<Leaflet.Marker | null>(null);
+  const deviceMarker = useRef<Leaflet.CircleMarker | null>(null),
+    accuracyCircle = useRef<Leaflet.Circle | null>(null);
+  const leaflet = useRef<typeof Leaflet | null>(null);
+  const watch = useRef<number | null>(null),
+    active = useRef(true),
+    followFirstFix = useRef(false);
+  const callbacks = useRef({
+    onLocationChange,
+    onReporterLocationFound,
+    onAddressChange,
   });
-  const [gpsStatus, setGpsStatus] = useState<string | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
-
+  callbacks.current = {
+    onLocationChange,
+    onReporterLocationFound,
+    onAddressChange,
+  };
+  const selected = useRef<Coords | null>(null);
+  selected.current =
+    initialLat !== undefined && initialLng !== undefined
+      ? { lat: initialLat, lng: initialLng }
+      : null;
+  const device = useRef<(Coords & { accuracy: number }) | null>(null);
+  const [gpsStatus, setGpsStatus] = useState(""),
+    [tracking, setTracking] = useState(false),
+    [locating, setLocating] = useState(false);
+  const [address, setAddress] = useState(""),
+    [addressLoading, setAddressLoading] = useState(false),
+    [addressError, setAddressError] = useState("");
+  const [mapError, setMapError] = useState(""),
+    [mapReady, setMapReady] = useState(false),
+    [deviceTime, setDeviceTime] = useState("");
+  const chooseRef = useRef<(lat: number, lng: number) => void>(() => {});
+  const movePin = useCallback((lat: number, lng: number, pan = false) => {
+    const L = leaflet.current,
+      instance = map.current;
+    if (!L || !instance) return;
+    if (marker.current) marker.current.setLatLng([lat, lng]);
+    else
+      marker.current = L.marker([lat, lng], {
+        draggable: true,
+        title: "Incident pin—drag to the hazard",
+        keyboard: true,
+        icon: L.divIcon({
+          className: "incident-location-marker",
+          html: '<span class="incident-pin"><span></span></span>',
+          iconSize: [32, 40],
+          iconAnchor: [16, 40],
+        }),
+      })
+        .addTo(instance)
+        .on("dragend", () => {
+          const p = marker.current!.getLatLng();
+          chooseRef.current(p.lat, p.lng);
+        });
+    if (pan)
+      instance.setView([lat, lng], Math.max(instance.getZoom(), 16), {
+        animate: false,
+      });
+  }, []);
+  const choose = useCallback(
+    (lat: number, lng: number) => {
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180
+      )
+        return;
+      followFirstFix.current = false;
+      const a = Math.round(lat * 1e6) / 1e6,
+        b = Math.round(lng * 1e6) / 1e6;
+      selected.current = { lat: a, lng: b };
+      callbacks.current.onLocationChange(a, b);
+      movePin(a, b);
+    },
+    [movePin],
+  );
+  chooseRef.current = choose;
+  const renderDevice = useCallback(() => {
+    const position = device.current,
+      L = leaflet.current,
+      instance = map.current;
+    if (!position || !L || !instance) return;
+    const point: [number, number] = [position.lat, position.lng];
+    if (deviceMarker.current) deviceMarker.current.setLatLng(point);
+    else
+      deviceMarker.current = L.circleMarker(point, {
+        radius: 7,
+        fillColor: "#2563eb",
+        fillOpacity: 1,
+        color: "#fff",
+        weight: 3,
+      })
+        .addTo(instance)
+        .bindTooltip("Your device location");
+    if (accuracyCircle.current)
+      accuracyCircle.current
+        .setLatLng(point)
+        .setRadius(Math.min(position.accuracy, 5000));
+    else
+      accuracyCircle.current = L.circle(point, {
+        radius: Math.min(position.accuracy, 5000),
+        color: "#2563eb",
+        fillColor: "#60a5fa",
+        fillOpacity: 0.12,
+        weight: 1,
+      }).addTo(instance);
+  }, []);
+  const stopTracking = useCallback(() => {
+    if (watch.current !== null)
+      navigator.geolocation?.clearWatch(watch.current);
+    watch.current = null;
+    setTracking(false);
+    setLocating(false);
+  }, []);
+  const startTracking = useCallback(() => {
+    if (!window.isSecureContext) {
+      setGpsStatus(
+        "Location requires HTTPS or localhost. You can still drop the incident pin on the map.",
+      );
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGpsStatus(
+        "This browser cannot access device location. Drop the incident pin on the map instead.",
+      );
+      return;
+    }
+    if (watch.current !== null) {
+      if (device.current) {
+        choose(device.current.lat, device.current.lng);
+        movePin(device.current.lat, device.current.lng, true);
+      }
+      return;
+    }
+    setLocating(true);
+    setGpsStatus("Waiting for device location permission…");
+    followFirstFix.current = true;
+    const success = (position: GeolocationPosition) => {
+      if (!active.current) return;
+      const { latitude: lat, longitude: lng, accuracy } = position.coords;
+      device.current = { lat, lng, accuracy };
+      callbacks.current.onReporterLocationFound?.(lat, lng);
+      setDeviceTime(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+      setLocating(false);
+      setGpsStatus(
+        `Device location updated · accuracy about ${Math.round(accuracy)} m`,
+      );
+      renderDevice();
+      // Only the first requested fix positions the incident. Later live fixes never move a manually selected hazard pin.
+      if (followFirstFix.current) {
+        choose(lat, lng);
+        movePin(lat, lng, true);
+      }
+    };
+    const failure = (error: GeolocationPositionError) => {
+      if (!active.current) return;
+      followFirstFix.current = false;
+      stopTracking();
+      setGpsStatus(
+        error.code === 1
+          ? "Location permission denied. Enable it in browser settings or drop the incident pin manually."
+          : error.code === 3
+            ? "Location request timed out. Retry near a window or outdoors, or select the incident on the map."
+            : "Your device could not determine its location. Enable device location and retry, or drop the pin on the map.",
+      );
+    };
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 5000,
+    };
+    if (typeof navigator.geolocation.watchPosition === "function") {
+      watch.current = navigator.geolocation.watchPosition(
+        success,
+        failure,
+        options,
+      );
+      setTracking(true);
+    } else navigator.geolocation.getCurrentPosition(success, failure, options);
+  }, [choose, movePin, renderDevice, stopTracking]);
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapContainerRef.current) return;
-
-    let isMounted = true;
-
-    import('leaflet').then((leafletModule) => {
-      if (!isMounted || !mapContainerRef.current) return;
-      const L = leafletModule.default || leafletModule;
-      leafletModuleRef.current = L;
-
-      if (!mapRef.current) {
-        const map = L.map(mapContainerRef.current, {
-          center: [initialLat, initialLng],
-          zoom: 14,
+    active.current = true;
+    let cancelled = false;
+    let resize: ResizeObserver | undefined;
+    void import("leaflet")
+      .then((module) => {
+        if (cancelled || !container.current) return;
+        const L = module.default || module;
+        leaflet.current = L;
+        const point = selected.current || device.current;
+        const instance = L.map(container.current, {
+          center: point ? [point.lat, point.lng] : [22.9447, 90.8282],
+          zoom: point ? 16 : 13,
           zoomControl: false,
           zoomAnimation: false,
           markerZoomAnimation: false,
         });
-
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19,
-        }).addTo(map);
-
-        // Custom draggable red pin for the incident location
-        const incidentIcon = L.divIcon({
-          className: 'incident-picker-marker',
-          html: `
-            <div style="
-              width: 32px;
-              height: 32px;
-              background: #ef4444;
-              border: 2px solid #ffffff;
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 0 12px rgba(239,68,68,0.7);
-            ">
-              <div style="width: 10px; height: 10px; background: #ffffff; border-radius: 50%;"></div>
-            </div>
-          `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
+        map.current = instance;
+        L.control.zoom({ position: "bottomright" }).addTo(instance);
+        const tiles = L.tileLayer(
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+          },
+        ).addTo(instance);
+        tiles.on("tileerror", () => {
+          if (!cancelled)
+            setMapError(
+              "Map tiles could not load. Check your connection and retry; the selected location is kept.",
+            );
         });
-
-        const marker = L.marker([initialLat, initialLng], {
-          icon: incidentIcon,
-          draggable: true,
-        }).addTo(map);
-
-        marker.on('dragend', () => {
-          const pos = marker.getLatLng();
-          const updated = {
-            lat: Math.round(pos.lat * 10000) / 10000,
-            lng: Math.round(pos.lng * 10000) / 10000,
-          };
-          setCoords(updated);
-          locationChangeRef.current(updated.lat, updated.lng);
+        tiles.on("load", () => {
+          if (!cancelled) setMapError("");
         });
-
-        // Map click moves marker to clicked position
-        map.on('click', (e: any) => {
-          const updated = {
-            lat: Math.round(e.latlng.lat * 10000) / 10000,
-            lng: Math.round(e.latlng.lng * 10000) / 10000,
-          };
-          marker.setLatLng([updated.lat, updated.lng]);
-          setCoords(updated);
-          locationChangeRef.current(updated.lat, updated.lng);
+        instance.on("click", (event: Leaflet.LeafletMouseEvent) =>
+          choose(event.latlng.lat, event.latlng.lng),
+        );
+        if (selected.current)
+          movePin(selected.current.lat, selected.current.lng);
+        renderDevice();
+        resize = new ResizeObserver(() =>
+          instance.invalidateSize({ pan: false }),
+        );
+        resize.observe(container.current);
+        requestAnimationFrame(() => {
+          if (!cancelled) instance.invalidateSize({ pan: false });
         });
-
-        markerRef.current = marker;
-        mapRef.current = map;
-      }
-    });
-
+        setMapReady(true);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setMapError(
+            "The map could not initialize. Reload the page or use device location.",
+          );
+      });
     return () => {
-      isMounted = false;
-      if (mapRef.current) {
-        mapRef.current.stop();
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
+      cancelled = true;
+      active.current = false;
+      resize?.disconnect();
+      if (watch.current !== null)
+        navigator.geolocation?.clearWatch(watch.current);
+      watch.current = null;
+      map.current?.stop();
+      map.current?.remove();
+      map.current = null;
+      marker.current = null;
+      deviceMarker.current = null;
+      accuracyCircle.current = null;
     };
-  }, []);
-
-  // Preset changes must move both the displayed pin and the submitted coordinates.
+  }, [choose, movePin, renderDevice]);
   useEffect(() => {
-    setCoords({ lat: initialLat, lng: initialLng });
-    if (mapRef.current && markerRef.current) {
-      markerRef.current.setLatLng([initialLat, initialLng]);
-      mapRef.current.panTo([initialLat, initialLng]);
+    if (initialLat !== undefined && initialLng !== undefined)
+      movePin(initialLat, initialLng);
+    else {
+      marker.current?.remove();
+      marker.current = null;
     }
-  }, [initialLat, initialLng]);
-
-  const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setGpsStatus('Geolocation is not supported by your browser.');
+  }, [initialLat, initialLng, movePin]);
+  useEffect(() => {
+    let cancelled = false;
+    void navigator.permissions
+      ?.query({ name: "geolocation" })
+      .then((permission) => {
+        if (!cancelled && permission.state === "granted") startTracking();
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [startTracking]);
+  useEffect(() => {
+    if (initialLat === undefined || initialLng === undefined) {
+      setAddress("");
+      setAddressError("");
+      callbacks.current.onAddressChange?.("");
       return;
     }
-
-    setIsLocating(true);
-    setGpsStatus('Requesting GPS location...');
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setIsLocating(false);
-        const repLat = Math.round(position.coords.latitude * 10000) / 10000;
-        const repLng = Math.round(position.coords.longitude * 10000) / 10000;
-
-        setGpsStatus(`GPS located (${repLat}, ${repLng}). Drag red pin to exact incident hazard spot.`);
-
-        if (onReporterLocationFound) {
-          onReporterLocationFound(repLat, repLng);
-        }
-
-        const map = mapRef.current;
-        const L = leafletModuleRef.current;
-        if (map && L) {
-          const reporterIcon = L.divIcon({
-            className: 'reporter-gps-marker',
-            html: `
-              <div style="
-                width: 20px;
-                height: 20px;
-                background: #38bdf8;
-                border: 3px solid #ffffff;
-                border-radius: 50%;
-                box-shadow: 0 0 10px #38bdf8;
-              "></div>
-            `,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          });
-
-          if (reporterMarkerRef.current) {
-            reporterMarkerRef.current.setLatLng([repLat, repLng]);
-          } else {
-            reporterMarkerRef.current = L.marker([repLat, repLng], {
-              icon: reporterIcon,
-            })
-              .addTo(map)
-              .bindPopup('Your Current GPS Location (Reporter)');
+    const controller = new AbortController();
+    setAddressLoading(true);
+    setAddress("");
+    setAddressError("");
+    callbacks.current.onAddressChange?.("");
+    const timer = setTimeout(() => {
+      void fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: initialLat, lng: initialLng }),
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok || !data.address)
+            throw new Error(
+              data.error ||
+                "Address unavailable. Your selected pin is still saved.",
+            );
+          if (!controller.signal.aborted) {
+            setAddress(data.address);
+            callbacks.current.onAddressChange?.(data.address);
           }
-
-          map.flyTo([repLat, repLng], 16);
-          if (markerRef.current) {
-            markerRef.current.setLatLng([repLat, repLng]);
-          }
-          setCoords({ lat: repLat, lng: repLng });
-          onLocationChange(repLat, repLng);
-        }
-      },
-      (error) => {
-        setIsLocating(false);
-        let errorMsg = 'GPS permission denied or unavailable.';
-        if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = 'GPS access denied by user. Please click on the map to set the incident location manually.';
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = 'GPS position unavailable. Please pick location manually on the map.';
-        }
-        setGpsStatus(errorMsg);
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
-  };
-
+        })
+        .catch((error) => {
+          if (!controller.signal.aborted)
+            setAddressError(
+              error.message ||
+                "Address unavailable. Your selected pin is still saved.",
+            );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setAddressLoading(false);
+        });
+    }, 450);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [initialLat, initialLng]);
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <MapPin className="w-4 h-4 text-red-400" />
-          <span className="text-xs font-semibold text-slate-300">
-            Selected Incident Coordinates:
-          </span>
-          <span className="text-xs font-mono bg-slate-800 text-sky-400 px-2 py-0.5 rounded border border-slate-700">
-            {coords.lat.toFixed(4)}°N, {coords.lng.toFixed(4)}°E
-          </span>
+    <section className="location-card" aria-label="Incident location">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="eyebrow">02 / Location</p>
+          <h2 className="mt-1 text-lg font-semibold tracking-tight">
+            Pin the incident
+          </h2>
         </div>
-
+        <MapPin className="text-blue-600" size={21} />
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-slate-500">
+        Use your device location, then drag the red pin to the exact hazard.
+      </p>
+      <div className="location-map-frame" data-testid="location-map-panel">
+        <div
+          ref={container}
+          className="location-map-canvas"
+          role="application"
+          aria-label="Incident location map—click to drop a pin"
+        />
+        {!mapReady && !mapError && (
+          <div
+            role="status"
+            className="absolute inset-0 z-[500] flex items-center justify-center bg-slate-100 text-sm text-slate-500"
+          >
+            Loading map…
+          </div>
+        )}
+        <span className="map-pin-hint">
+          <Crosshair size={13} /> Click or drag to set the pin
+        </span>
+      </div>
+      {mapError && (
+        <p role="status" className="mt-2 text-xs text-amber-700">
+          {mapError}
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={handleGetCurrentLocation}
-          disabled={isLocating}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-colors disabled:opacity-50"
+          onClick={startTracking}
+          disabled={locating}
+          className="primary-button flex flex-1 items-center justify-center gap-2"
         >
-          <Locate className={`w-3.5 h-3.5 text-sky-400 ${isLocating ? 'animate-spin' : ''}`} />
-          {isLocating ? 'Acquiring GPS...' : 'Use My Current Location'}
+          <LocateFixed size={16} />
+          {locating
+            ? "Locating…"
+            : tracking
+              ? "Center on device"
+              : "Use live location"}
         </button>
+        {tracking && (
+          <button
+            type="button"
+            onClick={() => {
+              stopTracking();
+              setGpsStatus(
+                "Live device tracking stopped. Your incident pin is kept.",
+              );
+            }}
+            aria-label="Stop live location"
+            className="secondary-button"
+          >
+            <Square size={14} />
+          </button>
+        )}
       </div>
-
       {gpsStatus && (
-        <div className="text-[11px] flex items-center gap-1.5 text-slate-400 bg-slate-900/80 px-2.5 py-1.5 rounded border border-slate-800">
-          <AlertCircle className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-          <span>{gpsStatus}</span>
-        </div>
+        <p
+          role="status"
+          className="mt-2 text-xs leading-relaxed text-slate-500"
+        >
+          {gpsStatus}
+        </p>
       )}
-
-      {/* Map Element */}
-      <div className="relative w-full h-64 rounded-xl overflow-hidden border border-slate-700/80">
-        <div ref={mapContainerRef} className="w-full h-full dark-tiles z-0" />
-        <div className="absolute bottom-2 left-2 z-10 glass-panel px-2.5 py-1 rounded text-[11px] text-slate-300 pointer-events-none">
-          Click map or drag the <span className="text-red-400 font-bold">Red Marker</span> to specify the hazard site
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-600">
+          <MapPin size={14} /> Selected incident address
         </div>
+        <p
+          data-testid="selected-address"
+          className="text-sm leading-relaxed text-slate-800"
+        >
+          {addressLoading
+            ? "Finding the nearest mapped address…"
+            : address ||
+              (selected.current
+                ? "Dropped pin selected"
+                : "Drop a pin or use your device location")}
+        </p>
+        {addressError && (
+          <p className="mt-1 text-xs text-amber-700">{addressError}</p>
+        )}
+        {selected.current && (
+          <p className="mt-2 text-[11px] text-slate-500">
+            Nearest mapped address; confirm the red pin marks the hazard.
+          </p>
+        )}
       </div>
-    </div>
+      {deviceTime && (
+        <p
+          data-testid="device-location-status"
+          className="mt-3 flex items-center gap-1.5 text-xs text-slate-500"
+        >
+          <Navigation size={12} />
+          {tracking ? "Device tracking active" : "Device location saved"} ·
+          updated {deviceTime}
+        </p>
+      )}
+      <a
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 block text-[10px] text-slate-400"
+      >
+        Address and map data © OpenStreetMap contributors
+      </a>
+    </section>
   );
-};
+}

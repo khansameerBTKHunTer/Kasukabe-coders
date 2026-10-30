@@ -1,440 +1,691 @@
-'use client';
-
-import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
-import { 
-  Camera, 
-  Upload, 
-  MapPin, 
-  Send, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Info,
+"use client";
+import Image from "next/image";
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  Camera,
+  Check,
+  ImagePlus,
+  Loader2,
+  RefreshCw,
+  Send,
   Sparkles,
-  FileText
-} from 'lucide-react';
-import { PriorityBadge } from '../ui/PriorityBadge';
-import { AIAssessmentCard } from '../incident/AIAssessmentCard';
-import { useAuth } from '@/context/auth-context';
-
-const LocationPickerMap = dynamic(
-  () => import('../map/LocationPickerMap').then((mod) => mod.LocationPickerMap),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-64 glass-panel rounded-xl flex items-center justify-center text-xs text-slate-500">
-        Loading Location Picker Map...
-      </div>
+} from "lucide-react";
+import { LocationPickerMap } from "../map/LocationPickerMap";
+import { VoiceInput } from "./VoiceInput";
+import { uploadPhoto } from "@/lib/upload-client";
+import { useAuth } from "@/context/auth-context";
+import { PriorityBadge } from "../ui/PriorityBadge";
+import { AIAssessmentCard } from "../incident/AIAssessmentCard";
+import type { AIAssessment } from "@/types";
+type Photo = { imagePath: string; previewUrl: string; storage: string };
+type AIState = "idle" | "uploading" | "analyzing" | "ready" | "error";
+const input =
+  "mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100";
+export function ReportForm({ onSuccess }: { onSuccess?: () => void }) {
+  const { currentProfile, isDemo } = useAuth();
+  const [file, setFile] = useState<File | null>(null),
+    [preview, setPreview] = useState("");
+  const [savedPhoto, setSavedPhoto] = useState<Photo | null>(null);
+  const [description, setDescription] = useState(""),
+    [assistance, setAssistance] = useState("");
+  const [incident, setIncident] = useState<{ lat: number; lng: number } | null>(
+      null,
     ),
-  }
-);
-
-const SIMULATED_EVIDENCE_PRESETS = [
-  {
-    label: 'Flooded Main Road (College Rd)',
-    path: '/simulated-evidence/flood_college_road_1.svg',
-    category: 'flood',
-    lat: 22.9447,
-    lng: 90.8282,
-    desc: 'College Road submerged in 3.5ft water. Traffic halted, drainage overflowing.',
-    need: 'High-capacity water dewatering pumps and police traffic diversion.',
-    danger: 'no',
-    people: 25,
-  },
-  {
-    label: 'Fallen 11kV Pole & Conductor',
-    path: '/simulated-evidence/fallen_pole_1.svg',
-    category: 'electrical_hazard',
-    lat: 22.9449,
-    lng: 90.8284,
-    desc: 'Concrete electrical pole snapped across walkway into water with sparks popping.',
-    need: 'Emergency grid power shutoff and electrical line repair crew.',
-    danger: 'yes',
-    people: 40,
-  },
-  {
-    label: 'Commercial Building Structural Collapse',
-    path: '/simulated-evidence/building_collapse_1.svg',
-    category: 'building_damage',
-    lat: 22.9410,
-    lng: 90.8250,
-    desc: 'Ground floor pillars failed; front facade crumbled. Shop occupants suspected trapped.',
-    need: 'Urban search & rescue teams, hydraulic jacks, multiple ambulances.',
-    danger: 'yes',
-    people: 12,
-  },
-];
-
-export const ReportForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
-  const { currentProfile } = useAuth();
-  const [imagePath, setImagePath] = useState<string>('');
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [description, setDescription] = useState<string>('');
-  const [assistanceNeeded, setAssistanceNeeded] = useState<string>('');
-  const [sourceType, setSourceType] = useState<'on_site' | 'field_report' | 'news_public'>('on_site');
-  const [immediateDanger, setImmediateDanger] = useState<'yes' | 'no' | 'unknown'>('no');
-  const [reportedPeopleAffected, setReportedPeopleAffected] = useState<number | ''>('');
-  
-  // Incident coordinates vs Reporter coordinates
-  const [incidentCoords, setIncidentCoords] = useState<{ lat: number; lng: number }>({
-    lat: 22.9447,
-    lng: 90.8282,
-  });
-  const [reporterCoords, setReporterCoords] = useState<{ lat: number; lng: number } | null>(null);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<any | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // File Upload Handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please upload a valid image file (PNG, JPG, WebP, SVG).');
-      return;
-    }
-
-    if (file.size > 8 * 1024 * 1024) {
-      setErrorMessage('File size exceeds 8MB limit.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setImagePath(base64);
-      setImagePreview(base64);
-      setErrorMessage(null);
+    [reporter, setReporter] = useState<{ lat: number; lng: number } | null>(
+      null,
+    );
+  const [source, setSource] = useState("on_site"),
+    [danger, setDanger] = useState("unknown"),
+    [people, setPeople] = useState("");
+  const [aiState, setAIState] = useState<AIState>("idle"),
+    [aiError, setAIError] = useState(""),
+    [assessment, setAssessment] = useState<AIAssessment | null>(null);
+  const [suggestions, setSuggestions] = useState<{
+    description: string;
+    assistanceNeeded: string;
+  } | null>(null);
+  const [vision, setVision] = useState<{
+    model: string;
+    configured: boolean;
+  } | null>(null);
+  const [progress, setProgress] = useState(0),
+    [error, setError] = useState(""),
+    [submitting, setSubmitting] = useState(false),
+    [result, setResult] = useState<any>(null);
+  const dirty = useRef({ description: false, assistance: false });
+  const lock = useRef(false),
+    generation = useRef(0),
+    controller = useRef<AbortController | null>(null);
+  const invalidate = useCallback(() => {
+    generation.current++;
+  }, []);
+  const uploadJob = useRef<Promise<Photo> | null>(null);
+  useEffect(() => {
+    const abort = new AbortController();
+    void fetch("/api/ai/analyze", { signal: abort.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (response.ok) setVision(await response.json());
+      })
+      .catch(() => {});
+    return () => {
+      abort.abort();
+      controller.current?.abort();
+      invalidate();
     };
-    reader.readAsDataURL(file);
-  };
-
-  // Preset selector for instant simulated testing
-  const handleSelectPreset = (preset: typeof SIMULATED_EVIDENCE_PRESETS[0]) => {
-    setImagePath(preset.path);
-    setImagePreview(preset.path);
-    setDescription(preset.desc);
-    setAssistanceNeeded(preset.need);
-    setImmediateDanger(preset.danger as any);
-    setReportedPeopleAffected(preset.people);
-    setIncidentCoords({ lat: preset.lat, lng: preset.lng });
-    setErrorMessage(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!imagePath) {
-      setErrorMessage('Please capture, upload, or select an incident photograph.');
+  }, [invalidate]);
+  useEffect(() => {
+    if (!file) {
+      setPreview("");
       return;
     }
-    if (!description || description.trim().length < 10) {
-      setErrorMessage('Description must be at least 10 characters.');
-      return;
-    }
-    if (!assistanceNeeded || assistanceNeeded.trim().length < 3) {
-      setErrorMessage('Please describe assistance requirements.');
-      return;
-    }
-
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  const analyze = async (
+    photo: Photo,
+    version: number,
+    signal: AbortSignal,
+  ) => {
+    if (version !== generation.current || signal.aborted) return;
+    setAIState("analyzing");
+    setAIError("");
     try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
-
-      const payload = {
-        reporterId: currentProfile.id,
-        imagePath,
-        description,
-        incidentLatitude: incidentCoords.lat,
-        incidentLongitude: incidentCoords.lng,
-        reporterLatitude: reporterCoords ? reporterCoords.lat : null,
-        reporterLongitude: reporterCoords ? reporterCoords.lng : null,
-        sourceType,
-        assistanceNeeded,
-        reportedPeopleAffected: reportedPeopleAffected === '' ? null : Number(reportedPeopleAffected),
-        immediateDanger,
-      };
-
-      const res = await fetch('/api/incidents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const response = await fetch("/api/ai/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64OrUrl: photo.imagePath }),
+        signal,
       });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to submit disaster report');
+      const data = await response.json();
+      if (version !== generation.current || signal.aborted) return;
+      if (
+        !response.ok ||
+        !data.success ||
+        !data.assessment ||
+        !data.suggestions?.description ||
+        !data.suggestions?.assistanceNeeded
+      )
+        throw new Error(
+          data.error ||
+            "The image could not be analyzed. Retry or enter the details yourself.",
+        );
+      setAssessment(data.assessment);
+      setSuggestions(data.suggestions);
+      setAIState("ready");
+      if (data.model) setVision({ model: data.model, configured: true });
+      if (!dirty.current.description)
+        setDescription(data.suggestions.description);
+      if (!dirty.current.assistance)
+        setAssistance(data.suggestions.assistanceNeeded);
+    } catch (error) {
+      if (version === generation.current && !signal.aborted) {
+        setAIState("error");
+        setAIError(
+          error instanceof Error
+            ? error.message
+            : "Analysis failed. You can still enter the details yourself.",
+        );
       }
-
-      setSubmitResult(data);
-      if (onSuccess) onSuccess();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Submission error');
-    } finally {
-      setIsSubmitting(false);
     }
   };
+  const select = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const photo = event.target.files?.[0];
+    if (!photo) return;
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(photo.type) ||
+      !photo.size ||
+      photo.size > 8 * 1024 * 1024
+    ) {
+      setError("Choose a JPEG, PNG, or WebP photograph up to 8 MB.");
+      event.target.value = "";
+      return;
+    }
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    const version = ++generation.current;
+    setFile(photo);
+    setSavedPhoto(null);
+    setAssessment(null);
+    setSuggestions(null);
+    setAIError("");
+    setError("");
+    setAIState("uploading");
+    setProgress(0);
+    if (!dirty.current.description) setDescription("");
+    if (!dirty.current.assistance) setAssistance("");
+    const pending = uploadPhoto(
+      photo,
+      (percent) => {
+        if (version === generation.current) setProgress(percent);
+      },
+      abort.signal,
+    );
+    uploadJob.current = pending;
+    void pending
+      .then((uploaded) => {
+        if (version !== generation.current || abort.signal.aborted) return;
+        setSavedPhoto(uploaded);
+        return analyze(uploaded, version, abort.signal);
+      })
+      .catch((error) => {
+        if (version === generation.current && !abort.signal.aborted) {
+          setAIState("error");
+          setAIError(
+            error.message ||
+              "Photo upload failed. Choose the photo again to retry.",
+          );
+        }
+      });
+  };
+  const retry = () => {
+    if (!file || ["uploading", "analyzing"].includes(aiState)) return;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    const version = ++generation.current;
+    if (savedPhoto) {
+      void analyze(savedPhoto, version, abort.signal);
+      return;
+    }
+    setAIState("uploading");
+    setAIError("");
+    setProgress(0);
+    const pending = uploadPhoto(file, setProgress, abort.signal);
+    uploadJob.current = pending;
+    void pending
+      .then((photo) => {
+        if (version !== generation.current) return;
+        setSavedPhoto(photo);
+        return analyze(photo, version, abort.signal);
+      })
+      .catch((error) => {
+        if (!abort.signal.aborted) {
+          setAIState("error");
+          setAIError(error.message);
+        }
+      });
+  };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (lock.current) return;
+    setError("");
+    if (!currentProfile) {
+      setError("Your session is unavailable. Sign in again.");
+      return;
+    }
+    if (!file) {
+      setError("Choose an incident photograph.");
+      return;
+    }
+    if (!incident) {
+      setError(
+        "Select the incident on the map or use your live device location.",
+      );
+      return;
+    }
+    if (description.trim().length < 10 || assistance.trim().length < 3) {
+      setError(
+        "Review the AI suggestions or describe the visible damage and assistance needed.",
+      );
+      return;
+    }
+    if (people && (!Number.isInteger(Number(people)) || Number(people) < 0)) {
+      setError("People affected must be a whole number of zero or more.");
+      return;
+    }
+    lock.current = true;
+    setSubmitting(true);
+    try {
+      let photo = savedPhoto;
+      if (!photo) {
+        if (!uploadJob.current)
+          throw new Error("Choose the photograph again to upload it.");
+        photo = await uploadJob.current;
+      }
+      const response = await fetch("/api/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reporterId: currentProfile.id,
+          imagePath: photo.imagePath,
+          description: description.trim(),
+          assistanceNeeded: assistance.trim(),
+          incidentLatitude: incident.lat,
+          incidentLongitude: incident.lng,
+          reporterLatitude: reporter?.lat ?? null,
+          reporterLongitude: reporter?.lng ?? null,
+          sourceType: source,
+          immediateDanger: danger,
+          reportedPeopleAffected: people ? Number(people) : null,
+        }),
+      });
+      const data = await response.json();
+      if (
+        !response.ok ||
+        !data.success ||
+        !data.report?.id ||
+        !data.incident?.id ||
+        data.report.reporter_id !== currentProfile.id
+      )
+        throw new Error(
+          data.error ||
+            "Your report was not acknowledged. Your entries have been kept.",
+        );
+      controller.current?.abort();
+      generation.current++;
+      setResult(data);
+      onSuccess?.();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Submission failed. Your entries have been kept.",
+      );
+    } finally {
+      lock.current = false;
+      setSubmitting(false);
+    }
+  };
+  const modelLabel =
+    vision?.model === "gemini-3.5-flash-lite"
+      ? "Gemini 3.5 Flash-Lite"
+      : ["google/gemini-2.5-flash", "gemini-2.5-flash"].includes(
+            vision?.model || "",
+          )
+        ? "Gemini 2.5 Flash"
+        : vision?.model?.split("/").pop() || "Vision AI";
 
-  return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Submission Success Screen */}
-      {submitResult ? (
-        <div className="p-6 rounded-2xl glass-panel-elevated border border-emerald-500/40 space-y-5 animate-in fade-in">
-          <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Report received for triage</h2>
-              <p className="text-xs text-slate-400 font-mono">
-                Report ID: {submitResult.report.id} • Incident Record: #{submitResult.incident.id.slice(0, 8)}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-                Deterministic Priority Score
-              </span>
-              <PriorityBadge
-                band={submitResult.incident.priority_band}
-                score={submitResult.incident.priority_score}
-                size="lg"
-              />
-              <p className="text-xs text-slate-300 mt-2">
-                Score: <span className="font-mono font-bold text-sky-400">{submitResult.incident.priority_score}/100</span>
-              </p>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-                Assigned Department Recommendation
-              </span>
-              <p className="text-sm font-semibold text-white">
-                {submitResult.incident.primary_department?.name || 'Control Room Coordination'}
-              </p>
-              <p className="text-xs text-slate-400">
-                Status: <span className="text-amber-400">Awaiting control room review and dispatch</span>
-              </p>
-            </div>
-          </div>
-
-          {submitResult.duplicateCandidates && submitResult.duplicateCandidates.length > 0 && (
-            <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-500/30 text-xs text-blue-300">
-              <span className="font-bold">Duplicate Correlator: </span>
-              Identified {submitResult.duplicateCandidates.length} nearby incident(s) for control room correlation. Reports remain separate until reviewed.
-            </div>
-          )}
-
-          {submitResult.aiAssessment && (
+  if (result)
+    return (
+      <section className="report-card min-h-[65vh] flex flex-col items-center justify-center gap-5 text-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <Check size={28} />
+        </span>
+        <h2 className="text-2xl font-semibold">Report received for triage</h2>
+        <p role="status" className="text-sm text-slate-500">
+          Report ID: {result.report.id}
+        </p>
+        {isDemo && (
+          <p className="text-xs text-amber-700">
+            Saved to the temporary demo repository.
+          </p>
+        )}
+        <PriorityBadge
+          band={result.incident.priority_band}
+          score={result.incident.priority_score}
+        />
+        <p className="max-w-lg text-sm text-slate-500">
+          Control Room will review the evidence and coordinate the response. AI
+          suggestions are provisional, not verification or dispatch.
+        </p>
+        {result.aiAssessment && (
+          <div className="w-full max-w-3xl text-left">
             <AIAssessmentCard
-              assessment={submitResult.aiAssessment}
-              confidence={submitResult.incident.ai_confidence}
+              assessment={result.aiAssessment}
+              confidence={result.incident.ai_confidence}
             />
-          )}
-          {submitResult.aiWarning && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-200">AI assessment unavailable. Your report was saved for manual review.</p>}
-
-          <button
-            type="button"
-            onClick={() => {
-              setSubmitResult(null);
-              setImagePath('');
-              setImagePreview(null);
-              setDescription('');
-              setAssistanceNeeded('');
-              setImmediateDanger('no');
-              setReportedPeopleAffected('');
-              setReporterCoords(null);
-            }}
-            className="w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-xl text-sm transition-colors"
-          >
-            Submit Another Disaster Report
-          </button>
-        </div>
-      ) : (
-        /* Citizen Reporting Form */
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 rounded-2xl glass-panel border border-slate-800 space-y-5">
+          </div>
+        )}
+        {result.aiWarning && (
+          <p className="text-sm text-amber-700">
+            AI assessment unavailable. Your report was received for human
+            review.
+          </p>
+        )}
+        <button
+          className="primary-button"
+          onClick={() => {
+            setResult(null);
+            setFile(null);
+            setSavedPhoto(null);
+            uploadJob.current = null;
+            setDescription("");
+            setAssistance("");
+            dirty.current = { description: false, assistance: false };
+            setIncident(null);
+            setReporter(null);
+            setPeople("");
+            setDanger("unknown");
+            setAssessment(null);
+            setSuggestions(null);
+            setAIState("idle");
+          }}
+        >
+          Submit another report
+        </button>
+      </section>
+    );
+  return (
+    <form onSubmit={submit} className="report-workspace" aria-busy={submitting}>
+      <div className="report-main space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-sky-400" />
-              Citizen Emergency Report Form
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Submit photographs and geotagged observations of localized hazards. Reports feed directly into the Control Room ranked dispatch queue.
+            <p className="eyebrow">Citizen reporting</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+              Report an incident
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Add a photo. Review the AI suggestions. Confirm the location.
             </p>
           </div>
-
-          {errorMessage && (
-            <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-xs text-red-300 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
-              <span>{errorMessage}</span>
+          <span className="flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+            <Sparkles size={13} />
+            {modelLabel}
+          </span>
+        </div>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="report-card">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">01 / Evidence & observations</p>
+              <h2 className="mt-1 text-lg font-semibold">What happened?</h2>
             </div>
-          )}
-
-          {/* Quick Preset Buttons for Testing */}
-          <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 space-y-2">
-            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              Quick Simulated Scenarios (Pre-loaded Field Imagery)
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {SIMULATED_EVIDENCE_PRESETS.map((preset, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleSelectPreset(preset)}
-                  className="text-left p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 text-xs text-slate-300 transition-all"
-                >
-                  <span className="font-semibold text-white block">{preset.label}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{preset.lat}, {preset.lng}</span>
-                </button>
-              ))}
-            </div>
+            <Camera size={21} className="text-blue-600" />
           </div>
-
-          {/* Photograph Upload & Preview */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-              1. Incident Photograph (Required)
-            </label>
-
-            {imagePreview ? (
-              <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-black max-h-56">
-                <img
-                  src={imagePreview}
-                  alt="Incident preview"
-                  className="w-full h-48 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImagePath('');
-                    setImagePreview(null);
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 rounded bg-black/70 text-slate-300 hover:text-white text-xs"
-                >
-                  Change Photo
-                </button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-sky-400/60 rounded-xl p-6 cursor-pointer bg-slate-950/40 hover:bg-slate-900/40 transition-colors">
-                <Camera className="w-8 h-8 text-sky-400 mb-2" />
-                <span className="text-xs font-semibold text-white">Choose a disaster photo</span>
-                <span className="text-[11px] text-slate-400 mt-1">PNG, JPG, WebP, SVG up to 8MB</span>
+          <fieldset
+            disabled={submitting}
+            className="report-main-grid min-w-0 disabled:opacity-70"
+          >
+            <div className="min-w-0 space-y-4">
+              <label
+                htmlFor="incident-photo"
+                className={`photo-dropzone ${preview ? "has-photo" : ""}`}
+              >
+                {preview ? (
+                  <Image
+                    unoptimized
+                    src={preview}
+                    width={900}
+                    height={700}
+                    alt="Locally selected incident photograph"
+                    className="photo-preview"
+                  />
+                ) : (
+                  <span className="flex flex-col items-center gap-3 text-center">
+                    <span className="rounded-2xl bg-blue-50 p-4 text-blue-600">
+                      <ImagePlus size={30} />
+                    </span>
+                    <strong className="text-sm font-semibold text-slate-700">
+                      Choose an incident photograph
+                    </strong>
+                    <span className="text-xs text-slate-400">
+                      JPEG, PNG or WebP · up to 8 MB
+                    </span>
+                  </span>
+                )}
+                {preview && <span className="photo-change">Change photo</span>}
+                <span className="sr-only">Incident photograph</span>
                 <input
+                  id="incident-photo"
+                  aria-label="Incident photograph"
                   type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={select}
+                  className="sr-only"
                 />
               </label>
-            )}
-          </div>
-
-          {/* Description & Assistance */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-                2. Incident Description (Required)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe visible damage, depth of water, trapped civilians, active sparking..."
-                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                rows={3}
-                required
-              />
+              <div
+                className="flex items-center gap-2 text-xs text-slate-500"
+                role="status"
+              >
+                {["uploading", "analyzing"].includes(aiState) ? (
+                  <Loader2 size={14} className="animate-spin text-blue-600" />
+                ) : (
+                  <Check
+                    size={14}
+                    className={
+                      savedPhoto ? "text-emerald-600" : "text-slate-300"
+                    }
+                  />
+                )}
+                <span>
+                  {aiState === "uploading"
+                    ? `Uploading photo · ${progress}%`
+                    : aiState === "analyzing"
+                      ? "Analyzing visible damage and assistance…"
+                      : savedPhoto
+                        ? "Photo uploaded · report not submitted yet"
+                        : file
+                          ? "Selected locally; not uploaded yet"
+                          : "AI suggestions begin after you select a photo"}
+                </span>
+              </div>
+              {aiState === "uploading" && (
+                <progress
+                  aria-label="Photograph upload progress"
+                  max={100}
+                  value={progress}
+                  className="h-1 w-full accent-blue-600"
+                />
+              )}
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                The selected image is sent to your configured vision provider
+                for analysis. Review every suggestion before submitting.
+              </p>
+              {aiError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p
+                    role="status"
+                    className="text-xs leading-relaxed text-amber-800"
+                  >
+                    {aiError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={retry}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800"
+                  >
+                    <RefreshCw size={12} />
+                    Retry photo analysis
+                  </button>
+                </div>
+              )}
+              {assessment && (
+                <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex items-center gap-1 font-semibold text-blue-700">
+                      <Sparkles size={13} />
+                      Image assessment
+                    </span>
+                    <span className="text-slate-500">
+                      {Math.round(assessment.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="assessment-chip">
+                      {assessment.category.replaceAll("_", " ")}
+                    </span>
+                    <span className="assessment-chip">
+                      {assessment.severity} severity
+                    </span>
+                  </div>
+                  {assessment.secondary_hazards.length > 0 && (
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      <strong>Potential secondary hazards: </strong>
+                      {assessment.secondary_hazards
+                        .map((item) => item.replaceAll("_", " "))
+                        .join(", ")}
+                    </p>
+                  )}
+                  {assessment.uncertainties.length > 0 && (
+                    <p className="text-xs leading-relaxed text-slate-500">
+                      <strong>To verify: </strong>
+                      {assessment.uncertainties.join("; ")}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-blue-700">
+                    AI-assisted assessment · human review required
+                  </p>
+                </div>
+              )}
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-                3. Assistance Required (Required)
-              </label>
-              <textarea
-                value={assistanceNeeded}
-                onChange={(e) => setAssistanceNeeded(e.target.value)}
-                placeholder="Specify emergency capability required: dewatering pumps, line isolation, boats, ambulance..."
-                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                rows={3}
-                required
-              />
+            <div className="min-w-0 space-y-5">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="description"
+                    className="text-sm font-semibold"
+                  >
+                    Visible damage
+                  </label>
+                  {suggestions && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dirty.current.description = false;
+                        setDescription(suggestions.description);
+                      }}
+                      className="text-[11px] font-medium text-blue-600"
+                    >
+                      Use AI suggestion
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  id="description"
+                  required
+                  minLength={10}
+                  rows={5}
+                  placeholder="The AI will suggest a description from your photo. You can also type your own observations."
+                  value={description}
+                  onChange={(event) => {
+                    dirty.current.description = true;
+                    setDescription(event.target.value);
+                  }}
+                  className={input}
+                />
+                <VoiceInput
+                  label="visible damage"
+                  onTranscript={(text) => {
+                    dirty.current.description = true;
+                    setDescription((old) => `${old}${old ? " " : ""}${text}`);
+                  }}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="assistance" className="text-sm font-semibold">
+                    Assistance required
+                  </label>
+                  {suggestions && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dirty.current.assistance = false;
+                        setAssistance(suggestions.assistanceNeeded);
+                      }}
+                      className="text-[11px] font-medium text-blue-600"
+                    >
+                      Use AI suggestion
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  id="assistance"
+                  required
+                  minLength={3}
+                  rows={5}
+                  placeholder="Suggested response capabilities will appear here. Add any details you know."
+                  value={assistance}
+                  onChange={(event) => {
+                    dirty.current.assistance = true;
+                    setAssistance(event.target.value);
+                  }}
+                  className={input}
+                />
+                <VoiceInput
+                  label="assistance"
+                  onTranscript={(text) => {
+                    dirty.current.assistance = true;
+                    setAssistance((old) => `${old}${old ? " " : ""}${text}`);
+                  }}
+                />
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">
+                <strong className="font-semibold text-slate-600">
+                  Report what you can observe.
+                </strong>{" "}
+                AI may be wrong about hidden hazards, building safety, or people
+                affected. Add your own context and keep uncertain details
+                explicit.
+              </div>
             </div>
-          </div>
-
-          {/* Location Picker Section */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-              4. Incident Hazard Coordinates (Required)
+          </fieldset>
+        </div>
+        <div className="report-card">
+          <p className="eyebrow">03 / Additional context</p>
+          <fieldset
+            disabled={submitting}
+            className="mt-4 grid gap-4 sm:grid-cols-3"
+          >
+            <label className="text-xs font-medium text-slate-600">
+              Report source
+              <select
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+                className={input}
+              >
+                <option value="on_site">On-site eyewitness</option>
+                <option value="field_report">Field report</option>
+                <option value="news_public">News / public source</option>
+              </select>
             </label>
-            <LocationPickerMap
-              initialLat={incidentCoords.lat}
-              initialLng={incidentCoords.lng}
-              onLocationChange={(lat, lng) => setIncidentCoords({ lat, lng })}
-              onReporterLocationFound={(lat, lng) => setReporterCoords({ lat, lng })}
-            />
-          </div>
-
-          {/* Metadata Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div>
-              <label className="text-[11px] font-medium text-slate-400 block mb-1">
-                Report Source:
-              </label>
+            <label className="text-xs font-medium text-slate-600">
+              Immediate danger
               <select
-                value={sourceType}
-                onChange={(e) => setSourceType(e.target.value as any)}
-                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
+                value={danger}
+                onChange={(event) => setDanger(event.target.value)}
+                className={input}
               >
-                <option value="on_site">On-Site Eyewitness</option>
-                <option value="field_report">Official Field Responder</option>
-                <option value="news_public">News / Public Social Media</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-medium text-slate-400 block mb-1">
-                Immediate Danger to Life:
-              </label>
-              <select
-                value={immediateDanger}
-                onChange={(e) => setImmediateDanger(e.target.value as any)}
-                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
-              >
-                <option value="no">No Immediate Threat</option>
-                <option value="yes">YES — Active Threat</option>
                 <option value="unknown">Unknown</option>
+                <option value="yes">Yes — active threat</option>
+                <option value="no">No immediate threat</option>
               </select>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-medium text-slate-400 block mb-1">
-                Approx. People Affected:
-              </label>
+            </label>
+            <label className="text-xs font-medium text-slate-600">
+              People affected (optional)
               <input
                 type="number"
-                min="0"
-                value={reportedPeopleAffected}
-                onChange={(e) => setReportedPeopleAffected(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="Leave blank if unknown"
-                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
-              >
-              </input>
-            </div>
-          </div>
-
+                min={0}
+                step={1}
+                placeholder="If known"
+                value={people}
+                onChange={(event) => setPeople(event.target.value)}
+                className={input}
+              />
+            </label>
+          </fieldset>
+        </div>
+        <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center">
+          <p className="max-w-xl text-xs leading-relaxed text-slate-500">
+            Your report will be reviewed by Control Room. A recommendation does
+            not mean a team has been dispatched.
+          </p>
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-xl text-sm transition-all shadow-glow flex items-center justify-center gap-2 disabled:opacity-50"
+            disabled={submitting}
+            className="primary-button flex shrink-0 items-center justify-center gap-2 py-3"
           >
-            <Send className="w-4 h-4" />
-            <span>{isSubmitting ? 'Submitting & Triage Processing...' : 'Submit Emergency Report'}</span>
+            <Send size={15} />
+            {submitting ? "Submitting report…" : "Submit Emergency Report"}
           </button>
-        </form>
-      )}
-    </div>
+        </div>
+      </div>
+      <LocationPickerMap
+        initialLat={incident?.lat}
+        initialLng={incident?.lng}
+        onLocationChange={(lat, lng) => setIncident({ lat, lng })}
+        onReporterLocationFound={(lat, lng) => setReporter({ lat, lng })}
+      />
+    </form>
   );
-};
+}

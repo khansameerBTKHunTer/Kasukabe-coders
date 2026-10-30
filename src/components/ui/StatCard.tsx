@@ -19,27 +19,27 @@ export const StatCard: React.FC<StatCardProps> = ({
   variant = 'default',
 }) => {
   const variantStyles = {
-    default: 'border-slate-800 text-slate-200 icon-bg:bg-slate-800/80 icon-text:text-slate-400',
-    critical: 'border-red-500/30 bg-red-950/20 text-red-200 shadow-critical-glow',
-    high: 'border-orange-500/30 bg-orange-950/20 text-orange-200',
-    warning: 'border-amber-500/30 bg-amber-950/20 text-amber-200',
-    primary: 'border-sky-500/30 bg-sky-950/20 text-sky-200 shadow-glow',
+    default: 'border-slate-200 text-slate-700 icon-bg:bg-slate-100/80 icon-text:text-slate-500',
+    critical: 'border-red-200 bg-red-50 text-red-700 shadow-critical-glow',
+    high: 'border-orange-200 bg-orange-50 text-orange-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    primary: 'border-sky-200 bg-sky-50 text-blue-700 shadow-glow',
   }[variant];
 
   const iconColors = {
-    default: 'text-slate-400 bg-slate-800/80',
-    critical: 'text-red-400 bg-red-500/20',
-    high: 'text-orange-400 bg-orange-500/20',
-    warning: 'text-amber-400 bg-amber-500/20',
-    primary: 'text-sky-400 bg-sky-500/20',
+    default: 'text-slate-500 bg-slate-100/80',
+    critical: 'text-red-700 bg-red-500/20',
+    high: 'text-orange-700 bg-orange-500/20',
+    warning: 'text-amber-700 bg-amber-500/20',
+    primary: 'text-blue-600 bg-sky-500/20',
   }[variant];
 
   return (
     <div className={`min-w-0 p-3 sm:p-4 rounded-xl glass-panel ${variantStyles} flex items-start justify-between gap-2 transition-all`}>
       <div className="min-w-0">
-        <p className="text-xs font-medium text-slate-400 tracking-wide">{title}</p>
-        <p className="text-3xl font-bold font-mono tracking-tight mt-2 text-white">{value}</p>
-        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        <p className="text-xs font-medium text-slate-500 tracking-wide">{title}</p>
+        <p className="text-3xl font-bold font-mono tracking-tight mt-2 text-slate-900">{value}</p>
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
       <div className={`p-2 sm:p-2.5 rounded-lg shrink-0 ${iconColors}`}>
         <Icon className="w-5 h-5" />

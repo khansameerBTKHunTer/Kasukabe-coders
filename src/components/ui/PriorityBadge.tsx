@@ -25,27 +25,27 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({
 
   const config = {
     Critical: {
-      bg: 'bg-red-500/15 border-red-500/40 text-red-400',
+      bg: 'bg-red-500/15 border-red-200 text-red-700',
       icon: Flame,
       indicator: 'bg-red-500 animate-pulse',
     },
     High: {
-      bg: 'bg-orange-500/15 border-orange-500/40 text-orange-400',
+      bg: 'bg-orange-500/15 border-orange-200 text-orange-700',
       icon: AlertTriangle,
       indicator: 'bg-orange-500',
     },
     Medium: {
-      bg: 'bg-amber-500/15 border-amber-500/40 text-amber-400',
+      bg: 'bg-amber-500/15 border-amber-200 text-amber-700',
       icon: ShieldAlert,
       indicator: 'bg-amber-500',
     },
     Low: {
-      bg: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400',
+      bg: 'bg-emerald-500/15 border-emerald-200 text-emerald-700',
       icon: ShieldCheck,
       indicator: 'bg-emerald-500',
     },
   }[band] || {
-    bg: 'bg-slate-500/15 border-slate-500/40 text-slate-400',
+    bg: 'bg-slate-500/15 border-slate-500/40 text-slate-500',
     icon: ShieldCheck,
     indicator: 'bg-slate-500',
   };

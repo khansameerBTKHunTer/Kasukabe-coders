@@ -10,7 +10,7 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 ## 1. System Architecture & Core Workflow
 
 ```
-[ Citizen Report ] ──► [ Geotagged Image Upload ] ──► [ OpenRouter Vision Assessment ]
+[ Citizen Report ] ──► [ Geotagged Image Upload ] ──► [ Gemini Vision Assessment ]
                                                                │
                                                                ▼
 [ Activity Audit Log ] ◄── [ Control Room Verification ] ◄── [ 7-Factor Priority Engine ]
@@ -33,14 +33,14 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 - **Mapping:** Leaflet, OpenStreetMap, Client-isolated dynamic rendering
 - **Backend:** Next.js Server Actions & API Routes, Zod schema validation
 - **Database & Storage:** Supabase PostgreSQL, Supabase Auth, Row Level Security (RLS)
-- **AI Integration:** OpenRouter API (configurable vision model via `OPENROUTER_MODEL`)
+- **AI Integration:** Google Gemini vision via AI Studio (`GEMINI_MODEL`), with optional OpenRouter support.
 - **Deployment:** Vercel, Supabase
 
 ---
 
 ## 3. User Roles & Demo Profiles
 
-The demo supports six operational roles. Switch between them instantly via the role selector pill in the header:
+Six portals are selected from the authenticated database profile. For a local demonstration, use the separate fictional accounts listed in [the integration guide](docs/INTEGRATION_HANDOFF.md). Production navigation has no role selector:
 
 | Role | Demo User Profile | Responsibilities |
 |---|---|---|
@@ -63,9 +63,12 @@ cp .env.example .env.local
 
 ### Required Variables:
 ```env
-# OpenRouter AI Configuration (Image-capable vision model)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=google/gemini-2.5-flash
+# Native Google AI Studio vision configuration
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_google_ai_studio_api_key
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# Optional alternative: AI_PROVIDER=openrouter with OPENROUTER_API_KEY / OPENROUTER_MODEL
 
 # Supabase Database & Auth (Optional for demo mode; required for live cloud DB)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -76,27 +79,27 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-> **Note on Offline / Resilient Operation:** If `OPENROUTER_API_KEY` is not provided, reports are safely saved for manual control room triage with an explicit missing configuration notice. If Supabase is not configured, the platform runs on a persistent in-memory repository pre-seeded with the Lakshmipur disaster scenario.
+> **Manual triage:** If the selected vision provider key is not configured, real-mode reports are saved for human review without an invented AI assessment. Real mode requires Supabase and never silently falls back to demo data. Offline synchronization is not implemented.
 
 ---
 
 ## 5. Supabase Database Setup & Migrations
 
-Supabase configuration currently enables connection checks; the app still runs on demo profiles and an in-memory repository. Real login and persistence require backend integration.
+Real mode now uses Supabase authentication, profiles, persistence, private photo uploads, and server authorization. Local demo mode is explicitly enabled and isolated from Supabase.
 
-For the proposed role, approval, Auth-linking, and RLS changes, follow [the backend access review and rollout guide](supabase/ACCESS_REVIEW.md). Apply migrations in filename order in staging and review legacy profile IDs before rollout. The new migration has not been applied to the connected project. `seed.sql` is only a disposable demo fixture before access hardening.
+Follow [the integration setup and backend handoff](docs/INTEGRATION_HANDOFF.md) for the exact migration order, redirect settings, administrator bootstrap, tests, and account checklists. Local migrations have not been applied remotely. `seed.sql` is only a legacy disposable fixture; demo mode does not require it.
 
 ---
 
 ## 6. Simulated Lakshmipur Scenario (Seed Data)
 
-The platform includes a repeatable fictional disaster scenario based in **Lakshmipur**:
+Explicit isolated demo mode includes a repeatable fictional disaster scenario based in **Lakshmipur**:
 - **6 Simulated Reports** representing **4 Distinct Incidents**:
   1. *Flooded Main Road (College Road)* — Report #1 & duplicate Report #2.
   2. *Fallen 11kV Electrical Pole & Conductor* — Report #3 & duplicate Report #4 (30m away from flood, but distinct hazard!).
   3. *Partial Commercial Building Collapse (Lakshmipur Bazar)* — Report #5 (Critical life risk, USAR dispatch).
   4. *Waterlogged Residential Lane (Station Road North)* — Report #6 (1.4km away, isolated shallow flooding).
-- Reset the scenario at any time via the **"Reset Scenario"** button in the header or `POST /api/seed/reset`.
+- An authenticated demo admin can reset the scenario through `POST /api/seed/reset`. This endpoint refuses real-mode resets.
 
 ---
 
@@ -127,8 +130,19 @@ $$\text{Priority Score} = \sum_{i=1}^{7} \left( \frac{\text{Weight}_i \times \te
 ## 8. Installation & Running
 
 ### Prerequisites:
-- Node.js 18+ (tested on Node v26)
+- Node.js 22+ (tested on Node v26)
 - npm 9+
+
+### Open the working local demo:
+
+```bash
+npm install
+npm run dev:demo
+```
+
+Open the Local URL printed in the terminal and visit `/demo-login`. Use `citizen@civiscope.demo` (or another account in [the guide](docs/INTEGRATION_HANDOFF.md)) with password `CiviscopeDemo!2026`. Demo accounts access temporary fictional data only.
+
+For real accounts, configure Supabase and apply the reviewed integration migration as documented, then run `npm run dev` with `CIVISCOPE_DEMO_MODE=false`.
 
 ### Install Dependencies:
 ```bash
@@ -171,11 +185,11 @@ In the Control Room, click **Export SitRep PDF** beside Refresh. The button down
 - All departmental assignments with dispatch/acknowledgement/completion timestamps and response notes, plus chronological response activity history.
 - UTC issue time, report reference, repeated headers, page numbers, and an exercise notice when simulated incidents are present.
 
-The report covers all repository incidents regardless of dashboard filters. Critical/High KPI totals include resolved incidents, matching the dashboard; the detailed urgent incident section excludes resolved/closed incidents. Active responses count acknowledged/in-progress assignments, not unique incidents.
+The report covers all repository incidents regardless of dashboard filters. Critical/High KPI totals include resolved incidents, matching the dashboard; the detailed urgent incident section excludes resolved/closed incidents. Active responses count acknowledged/en-route/on-site/in-progress assignments, not unique incidents.
 
 `GET /api/reports/sitrep` returns `application/pdf` as an attachment with `Cache-Control: no-store`. Generation runs on the server using jsPDF; no database migration or external PDF service is needed. Download errors appear beside the export controls and can be retried.
 
-The current `IncidentService` uses process-local in-memory state, including when Supabase credentials are configured. Export follows that same source; this milestone does not add database persistence. The app currently uses demo persona switching, and this endpoint follows the existing read API access model without server-enforced role authentication. Built-in PDF fonts support Latin text; unsupported characters (including Bengali) appear as `?`. Unicode font embedding is a future enhancement.
+The PDF endpoint now requires a verified Control Room account. Real mode exports authorized Supabase records; isolated demo mode exports its fictional repository. Built-in PDF fonts support Latin text; unsupported characters (including Bengali) appear as `?`. Unicode font embedding is a future enhancement.
 
 `npm run test:engine` now runs the original engine suite and `scripts/test-sitrep.ts` using the tsx loader, which resolves the existing extensionless TypeScript imports on modern Node. Export checks cover PDF content, priority order, empty states, resolved incidents, long-note pagination, HTTP download headers, fresh updates, and generation failures. To save a sample PDF while testing:
 
@@ -185,9 +199,9 @@ SITREP_TEST_OUTPUT=/tmp/civiscope-sitrep.pdf npm run test:engine
 
 ## 10. Startup, UI, and Regression Checks
 
-The Control Room and department portals use responsive map/queue panels, a wider desktop workspace, wrapping phone controls, larger KPI values, keyboard-accessible incident cards, and visible data-load errors with Refresh recovery. Role switching resets department selections, map resizing follows panel resizing, and map animations are cleaned up to prevent errors during rapid role changes. Report presets keep the location pin in sync; submitted reports include the current demo reporter ID and tracking shows that reporter's submissions.
+The Control Room and department portals use responsive map/queue panels, a wider desktop workspace, wrapping phone controls, larger KPI values, keyboard-accessible incident cards, and visible data-load errors with Refresh recovery. Each verified profile opens its own portal. Map resizing follows panel resizing, and map animations are cleaned up on unmount. Reports require a confirmed hazard location; server-derived ownership and dedicated report tracking prevent relying on browser filtering.
 
-The statistics endpoint is dynamic so production KPI totals update after operations. Response and verification updates refresh the activity timeline and report tracking. Repeated active dispatches are idempotent, duplicate review preserves incidents with remaining evidence/assignments, and in-process state is shared across route bundles. This remains a demo repository: data is lost when the server restarts, and the demo role selector does not provide authenticated authorization. Supabase persistence and real authentication remain separate work.
+The statistics endpoint is dynamic so production KPI totals update after operations. Response and verification updates refresh the activity timeline and report tracking. Repeated active dispatches are idempotent, duplicate review preserves incidents with remaining evidence/assignments, and in-process state is shared across route bundles. Real mode uses Supabase persistence and verified sessions. Only the explicitly enabled demo repository loses data when the server restarts.
 
 Run the checks:
 
@@ -203,4 +217,4 @@ npx playwright install chromium
 TEST_BASE_URL=http://localhost:3001 npm run test:browser
 ```
 
-Browser tests reset the simulated scenario; use a local demo instance. They check all portals at 375, 768, and 1440 pixels, runtime errors during role changes, map markers, filters, activity updates, PDF downloads, current production KPIs, and retry behavior. Screenshots and failure traces are saved in `test-results/`. External OpenStreetMap tile availability and live OpenRouter/Supabase operations are not covered by these automated checks.
+Browser tests reset the simulated scenario; use a local demo instance. They check all portals at 375, 768, and 1440 pixels, runtime errors during role changes, map markers, filters, activity updates, PDF downloads, current production KPIs, and retry behavior. Screenshots and failure traces are saved in `test-results/`. External OpenStreetMap tile availability and live AI-provider/Supabase operations are not covered by these automated checks.
