@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect width="800" height="500" fill="#0b0f19"/>
+  <rect y="320" width="800" height="180" fill="#0f172a"/>
+  <!-- Fallen pole angled across -->
+  <line x1="150" y1="420" x2="650" y2="280" stroke="#94a3b8" stroke-width="24" stroke-linecap="round"/>
+  <!-- Broken wires with spark indicator -->
+  <path d="M650,280 Q700,320 600,380" fill="none" stroke="#facc15" stroke-width="5" stroke-dasharray="10,5"/>
+  <circle cx="610" cy="370" r="28" fill="#facc15" opacity="0.3"/>
+  <polygon points="610,345 615,365 625,365 605,395 612,375 602,375" fill="#facc15"/>
+  <rect x="20" y="20" width="760" height="50" rx="8" fill="#1e293b" stroke="#eab308" stroke-width="2"/>
+  <text x="40" y="52" fill="#facc15" font-family="system-ui, sans-serif" font-size="18" font-weight="bold">
+    CIVISCOPE SIMULATED EVIDENCE: FALLEN 11kV POLE &amp; LIVE CONDUIT
+  </text>
+  <text x="40" y="470" fill="#f87171" font-family="system-ui, sans-serif" font-size="14" font-weight="bold">
+    DANGER: Live 11kV conductor submerged in standing water. Category: Electrical Hazard.
+  </text>
+</svg>

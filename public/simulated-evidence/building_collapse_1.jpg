@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect width="800" height="500" fill="#110d14"/>
+  <polygon points="120,440 220,180 480,240 400,440" fill="#475569"/>
+  <!-- Rubble and fractured slabs -->
+  <polygon points="380,440 480,240 680,360 620,440" fill="#334155"/>
+  <polygon points="260,380 340,320 420,390 350,440" fill="#64748b"/>
+  <line x1="280" y1="220" x2="360" y2="340" stroke="#ef4444" stroke-width="4" stroke-dasharray="8,4"/>
+  <line x1="380" y1="260" x2="440" y2="400" stroke="#ef4444" stroke-width="4"/>
+  <rect x="20" y="20" width="760" height="50" rx="8" fill="#1e293b" stroke="#ef4444" stroke-width="2"/>
+  <text x="40" y="52" fill="#ef4444" font-family="system-ui, sans-serif" font-size="18" font-weight="bold">
+    CIVISCOPE SIMULATED EVIDENCE: 3-STOREY STRUCTURAL COLLAPSE
+  </text>
+  <text x="40" y="470" fill="#fca5a5" font-family="system-ui, sans-serif" font-size="14" font-weight="bold">
+    Location: Lakshmipur Bazar • Severe Life Risk: Trapped victims suspected • Dept: Fire &amp; Rescue / Medical
+  </text>
+</svg>
