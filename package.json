@@ -14,7 +14,8 @@
     "test:database": "node scripts/test-database.mjs",
     "test:api": "node --import tsx scripts/test-api.ts",
     "dev:demo": "CIVISCOPE_DEMO_MODE=true npm run dev",
-    "test:vision": "node --import tsx scripts/test-vision.ts"
+    "test:vision": "node --import tsx scripts/test-vision.ts",
+    "test:routing": "node --import tsx scripts/test-routing.ts"
   },
   "imports": {
     "@/*": "./src/*"

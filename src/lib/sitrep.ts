@@ -103,12 +103,14 @@ export function generateSitRep(snapshot: SitRepSnapshot): ArrayBuffer {
       text(`Response status: ${assignment.assignment_status} | Assigned: ${timestamp(assignment.assigned_at)}`);
       text(`Acknowledged: ${assignment.acknowledged_at ? timestamp(assignment.acknowledged_at) : 'Not recorded'} | Completed: ${assignment.completed_at ? timestamp(assignment.completed_at) : 'Not recorded'}`);
       text(`Response notes: ${assignment.notes || 'No response notes recorded.'}`);
+      text(`Assignment source: ${assignment.assignment_source ?? 'manual'} | Work verification: ${assignment.completion_verification ?? 'not_submitted'}`);
+      if (assignment.review_notes) text(`Admin work review: ${assignment.review_notes}`);
     }
   }
   if (!assignmentCount) text('No departmental assignments recorded.');
 
   section('4. Response activity history');
-  const responseActions = new Set(['department_assigned', 'assignment_acknowledged', 'status_updated', 'incident_resolved']);
+  const responseActions = new Set(['department_assigned', 'assignment_acknowledged', 'status_updated', 'incident_resolved', 'response_auto_assigned', 'routing_review_required', 'routing_review_completed', 'response_completion_submitted', 'response_work_verified', 'response_rework_requested']);
   const logs = snapshot.activityLogs.filter(log => responseActions.has(log.action))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const incidentsById = new Map(snapshot.incidents.map(i => [i.id, i]));

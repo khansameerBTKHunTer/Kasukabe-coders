@@ -5,8 +5,18 @@
 @tailwind utilities;
 
 :root {
-  --background: #f4f6f8;
-  --foreground: #172b3a;
+  --brand-ivory: #fffce9;
+  --brand-pearl: #e7d6c2;
+  --brand-blue: #798da6;
+  --brand-navy: #142841;
+  --brand-chocolate: #674635;
+  --background: #f2e8d9;
+  --foreground: var(--brand-navy);
+  --surface: #fff9ed;
+  --surface-muted: #f5edde;
+  --border: #cbb79e;
+  --muted: #6d5947;
+  --link: #304b66;
   color-scheme: light;
 }
 * {
@@ -30,7 +40,7 @@ select {
   touch-action: manipulation;
 }
 :focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--brand-chocolate);
   outline-offset: 3px;
 }
 button:disabled {
@@ -41,20 +51,20 @@ textarea {
 }
 .glass-panel,
 .glass-panel-elevated {
-  background: #fff;
-  border: 1px solid #e1e7ec;
-  box-shadow: 0 2px 8px rgb(23 43 58 / 3%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(103 70 53 / 5%);
 }
 .glass-card {
-  background: #fff;
-  border: 1px solid #e1e7ec;
+  background: var(--surface);
+  border: 1px solid var(--border);
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
 }
 .glass-card:hover {
-  border-color: #a8bdd3;
-  box-shadow: 0 3px 12px rgb(23 43 58 / 5%);
+  border-color: var(--brand-blue);
+  box-shadow: 0 3px 12px rgb(103 70 53 / 8%);
 }
 .operations-grid {
   display: grid;
@@ -86,17 +96,25 @@ textarea {
 /* Leaflet fills a dedicated sized panel; it must never override that panel's height. */
 .leaflet-container {
   width: 100%;
-  background: #eaf0e9;
-  color: #172b3a;
+  background: #e8e2cf;
+  color: var(--brand-navy);
   font-family: inherit;
 }
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: #fff;
-  color: #172b3a;
+  background: var(--surface);
+  color: var(--brand-navy);
 }
 .leaflet-popup-content {
   max-width: min(280px, 65vw);
+}
+.leaflet-bar a,
+.leaflet-control-attribution {
+  background: var(--surface);
+  color: var(--foreground);
+}
+.leaflet-control-attribution a {
+  color: var(--link);
 }
 .dark-tiles .leaflet-tile-pane {
   filter: none;
@@ -106,10 +124,10 @@ textarea {
   height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #eef2f5;
+  background: var(--surface-muted);
 }
 ::-webkit-scrollbar-thumb {
-  background: #bdcbd5;
+  background: #b7a188;
   border-radius: 6px;
 }
 .custom-pulse-marker {
@@ -124,19 +142,19 @@ textarea {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #667d8e;
+  color: var(--muted);
 }
 .primary-button {
   border-radius: 9px;
-  background: #2563eb;
-  color: white;
+  background: var(--brand-chocolate);
+  color: var(--brand-ivory);
   padding: 10px 14px;
   font-size: 12px;
   font-weight: 600;
   transition: background 0.15s;
 }
 .primary-button:hover {
-  background: #1d4ed8;
+  background: #503627;
 }
 .primary-button:disabled {
   opacity: 0.55;
@@ -146,12 +164,12 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #d9e2e9;
+  border: 1px solid var(--border);
   border-radius: 9px;
   padding: 9px 12px;
-  background: white;
+  background: var(--surface);
   font-size: 12px;
-  color: #465d70;
+  color: var(--link);
 }
 .report-workspace {
   display: grid;
@@ -166,10 +184,10 @@ textarea {
 .report-card,
 .location-card {
   padding: 22px;
-  border: 1px solid #e1e7ec;
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: white;
-  box-shadow: 0 2px 8px rgb(23 43 58 / 2%);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(103 70 53 / 4%);
 }
 .report-main-grid {
   display: grid;
@@ -182,9 +200,9 @@ textarea {
   min-height: 320px;
   margin-top: 16px;
   overflow: hidden;
-  border: 1px solid #dde5eb;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #eaf0e9;
+  background: #e8e2cf;
 }
 .location-map-canvas {
   position: absolute !important;
@@ -202,11 +220,11 @@ textarea {
   align-items: center;
   gap: 5px;
   max-width: calc(100% - 20px);
-  background: rgb(255 255 255 / 94%);
+  background: rgb(255 249 237 / 96%);
   padding: 7px 9px;
   border-radius: 7px;
   font-size: 10px;
-  color: #425d6d;
+  color: var(--link);
   box-shadow: 0 2px 5px rgb(0 0 0 / 5%);
   pointer-events: none;
 }
@@ -217,7 +235,7 @@ textarea {
   height: 28px;
   transform: rotate(-45deg);
   background: #e5484d;
-  border: 3px solid white;
+  border: 3px solid var(--brand-ivory);
   border-radius: 50% 50% 50% 0;
   box-shadow: 0 3px 9px rgb(0 0 0 / 23%);
 }
@@ -229,7 +247,7 @@ textarea {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: white;
+  background: var(--surface);
 }
 @media (min-width: 900px) {
   .report-main-grid {
@@ -263,16 +281,16 @@ textarea {
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  border: 1.5px dashed #cbd7e2;
+  border: 1.5px dashed #bca68b;
   border-radius: 13px;
-  background: #f8fafc;
+  background: #fffbf1;
   transition: border-color 0.15s;
 }
 .photo-dropzone:hover {
-  border-color: #608acb;
+  border-color: var(--brand-blue);
 }
 .photo-dropzone:focus-within {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--brand-chocolate);
   outline-offset: 3px;
 }
 .photo-dropzone.has-photo {
@@ -287,26 +305,48 @@ textarea {
   position: absolute;
   bottom: 12px;
   right: 12px;
-  background: rgb(255 255 255 / 95%);
-  border: 1px solid #e1e7ec;
+  background: rgb(255 249 237 / 97%);
+  border: 1px solid var(--border);
   padding: 7px 10px;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 600;
-  color: #42586c;
+  color: var(--link);
 }
 .assessment-chip {
-  border: 1px solid #dce6f4;
+  border: 1px solid #bccbd7;
   border-radius: 6px;
   padding: 3px 7px;
-  background: white;
-  color: #466285;
+  background: var(--surface);
+  color: var(--link);
   font-size: 10px;
   text-transform: capitalize;
 }
 .app-header {
   min-height: 72px;
-  box-shadow: 0 1px 0 rgb(23 43 58 / 3%);
+  box-shadow: 0 1px 0 rgb(103 70 53 / 5%);
+  background: var(--brand-navy);
+  color: var(--brand-ivory);
+  border-color: #798da6;
+}
+.app-header .text-blue-600,
+.app-header .text-blue-700 {
+  color: var(--brand-ivory);
+}
+.app-header .text-slate-500 {
+  color: var(--brand-pearl);
+}
+.app-header .text-amber-700 {
+  color: #f0d49a;
+}
+.app-header .text-red-700 {
+  color: #ffd3c6;
+}
+.app-header :focus-visible {
+  outline-color: var(--brand-ivory);
+}
+.app-header .border-slate-200 {
+  border-color: rgb(231 214 194 / 50%);
 }
 .app-main:has(.auth-screen) {
   padding: 0;
@@ -322,25 +362,25 @@ textarea {
   background:
     linear-gradient(
       90deg,
-      rgb(245 248 250 / 3%),
-      rgb(245 248 250 / 15%) 58%,
-      rgb(245 248 250 / 45%)
+      rgb(20 40 65 / 3%),
+      rgb(20 40 65 / 5%) 58%,
+      rgb(20 40 65 / 28%)
     ),
-    url("/images/civiscope-city-background.webp") center / cover no-repeat;
+    url("/images/civiscope-rescue-atlas.webp") center / cover no-repeat;
 }
 .auth-panel {
   position: relative;
   width: 420px;
   max-width: 100%;
   padding: 32px;
-  border: 1px solid rgb(255 255 255 / 90%);
+  border: 1px solid rgb(203 183 158 / 95%);
   border-radius: 20px;
-  background: rgb(255 255 255 / 97%);
-  box-shadow: 0 12px 48px rgb(30 53 63 / 10%);
+  background: rgb(255 249 237 / 97%);
+  box-shadow: 0 12px 48px rgb(20 40 65 / 25%);
 }
 .auth-panel input,
 .auth-panel select {
-  background: #fff;
+  background: var(--surface);
 }
 @media (max-width: 639px) {
   .auth-screen {

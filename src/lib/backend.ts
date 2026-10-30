@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculatePriorityScore } from "@/lib/priority-engine";
 import { recommendDepartments } from "@/lib/department-router";
 import { findDuplicateCandidates } from "@/lib/duplicate-detector";
+import { planResponse, responseStatus } from "@/lib/response-routing";
 
 export const EVIDENCE_BUCKET = "incident-evidence";
 export type SubmitReport = Parameters<
@@ -23,11 +24,12 @@ function failure(error: { code?: string; message: string } | null) {
   if (
     error.code === "PGRST202" ||
     error.code === "PGRST205" ||
+    error.code === "42703" ||
     error.code === "42P01"
   )
     throw new ApiError(
       503,
-      "Database setup is incomplete. Apply the reviewed portal integration migration first.",
+      "Database setup is incomplete. Apply the portal integration and India relief routing migrations first.",
     );
   if (error.code === "P0001" || error.code === "22023")
     throw new ApiError(409, error.message);
@@ -208,7 +210,10 @@ export class Backend {
   async submitCitizenReport(params: SubmitReport) {
     await validatePhoto(this.actor, params.imagePath);
     params.reporterId = this.actor.profile.id;
-    if (this.actor.demo) return IncidentService.submitCitizenReport(params);
+    if (this.actor.demo) {
+      const result = await IncidentService.submitCitizenReport(params);
+      return { ...result, duplicateCandidates: [] };
+    }
     const priorityResult = calculatePriorityScore({
       category: params.aiAssessment?.category ?? "other",
       immediateDanger: params.immediateDanger,
@@ -223,8 +228,21 @@ export class Backend {
     );
     const { data: departments, error: deptError } = await this.admin
       .from("departments")
-      .select("*");
+      .select("id,name,code,capabilities,responder_role,activation_mode");
     failure(deptError);
+    let nearbyQuery = this.admin.from("incidents")
+      .select("id,title,category,latitude,longitude,description,status")
+      .gte("latitude", params.incidentLatitude - 0.002)
+      .lte("latitude", params.incidentLatitude + 0.002)
+      .not("status", "in", "(resolved,closed)");
+    const longitudeSpan = Math.min(180, 0.002 / Math.max(0.001, Math.cos(params.incidentLatitude * Math.PI / 180)));
+    if (params.incidentLongitude - longitudeSpan >= -180 && params.incidentLongitude + longitudeSpan <= 180) {
+      nearbyQuery = nearbyQuery.gte("longitude", params.incidentLongitude - longitudeSpan).lte("longitude", params.incidentLongitude + longitudeSpan);
+    }
+    const { data: nearby, error: nearbyError } = await nearbyQuery;
+    failure(nearbyError);
+    const duplicates = findDuplicateCandidates({ incident_latitude: params.incidentLatitude, incident_longitude: params.incidentLongitude, description: params.description, category: params.aiAssessment?.category }, (nearby ?? []) as Incident[]);
+    const routing = planResponse({ ...params, priorityBand: priorityResult.priorityBand, hasDuplicateCandidates: duplicates.some(d => d.duplicateConfidence !== "unlikely"), departments: departments ?? [] });
     const now = new Date().toISOString();
     const incident: Omit<Incident, "id"> & { id: string } = {
       id: randomUUID(),
@@ -243,13 +261,14 @@ export class Backend {
       priority_score: priorityResult.totalScore,
       priority_band: priorityResult.priorityBand,
       priority_reasons: priorityResult.reasons,
-      review_required: true,
+      review_required: routing.mode === "needs_review",
+      routing_decision: routing,
       verification_status: "unverified",
-      status: "open",
-      primary_department_id:
+      status: routing.mode === "automatic" ? "assigned" : "open",
+      primary_department_id: routing.mode === "automatic" ?
         departments?.find(
           (d) => d.code === recommendation.primaryDepartmentCode,
-        )?.id ?? null,
+        )?.id ?? null : null,
       created_at: now,
       updated_at: now,
     };
@@ -289,6 +308,10 @@ export class Backend {
     id: string,
     payload: Record<string, unknown>,
   ) {
+    // Older RPCs ignore unknown JSON fields. Check the schema before allowing a
+    // write so the UI never claims auto-assignment against an unmigrated DB.
+    const schema = await this.admin.from("departments").select("activation_mode,responder_role").limit(1);
+    failure(schema.error);
     const { data, error } = await this.admin.rpc("civiscope_command", {
       command,
       target_id: id,
@@ -362,6 +385,8 @@ export class Backend {
         400,
         "Provide a rejection reason with at least 5 characters.",
       );
+    if (next === "resolved" && (!notes || notes.trim().length < 10))
+      throw new ApiError(400, "Describe the completed work using at least 10 characters for admin verification.");
     if (!this.actor.demo)
       return this.command("status", id, { status: next, notes });
     if (next === "acknowledged")
@@ -428,11 +453,12 @@ export class Backend {
     if (
       incident.status !== "resolved" ||
       !assignments.length ||
-      assignments.some((a) => a.assignment_status !== "resolved")
+      assignments.some((a) => a.assignment_status !== "rejected" && (a.assignment_status !== "resolved" || a.completion_verification !== "verified")) ||
+      incident.routing_decision?.mode === "needs_review"
     )
       throw new ApiError(
         409,
-        "All department assignments must be resolved before closing.",
+        "All response work must be verified and routing review completed before closing.",
       );
     incident.status = "closed";
     incident.updated_at = new Date().toISOString();
@@ -444,6 +470,37 @@ export class Backend {
       reason: "Control Room closed the completed incident.",
       created_at: new Date().toISOString(),
     });
+    return incident;
+  }
+  async reviewResponse(id: string, decision: "verified" | "rework", notes: string) {
+    this.adminOnly();
+    if (notes.trim().length < 10) throw new ApiError(400, "Provide review notes of at least 10 characters.");
+    if (!this.actor.demo) return this.command("review_response", id, { decision, notes });
+    const assignment = getStore().assignments.find(a => a.id === id);
+    if (!assignment || assignment.assignment_status !== "resolved" || assignment.completion_verification !== "pending_review") throw new ApiError(409, "This response is not awaiting verification.");
+    assignment.completion_verification = decision;
+    assignment.reviewed_by = this.actor.profile.id;
+    assignment.reviewed_at = new Date().toISOString();
+    assignment.review_notes = notes.trim();
+    if (decision === "rework") { assignment.assignment_status = "in_progress"; assignment.completed_at = null; }
+    const incident = getStore().incidents.find(i => i.id === assignment.incident_id)!;
+    incident.status = responseStatus(getStore().assignments.filter(a => a.incident_id === incident.id));
+    incident.updated_at = new Date().toISOString();
+    getStore().activityLogs.unshift({ id: randomUUID(), incident_id: incident.id, actor_id: this.actor.profile.id, action: decision === "verified" ? "response_work_verified" : "response_rework_requested", new_value: { assignment_id: id, decision }, reason: notes.trim(), created_at: incident.updated_at });
+    return assignment;
+  }
+  async reviewRouting(id: string, notes: string) {
+    this.adminOnly();
+    if (notes.trim().length < 10) throw new ApiError(400, "Explain the routing decision using at least 10 characters.");
+    if (!this.actor.demo) return this.command("review_routing", id, { notes });
+    const incident = getStore().incidents.find(i => i.id === id);
+    const assignments = getStore().assignments.filter(a => a.incident_id === id && a.assignment_status !== "rejected");
+    if (!incident || incident.status === "closed" || !assignments.length) throw new ApiError(409, "Assign at least one response team before completing routing review.");
+    const codes = assignments.map(a => SEED_DEPARTMENTS.find(d => d.id === a.department_id)!.code);
+    incident.routing_decision = { mode: "manual", assigned_codes: [...new Set(codes)], suggested_codes: incident.routing_decision?.suggested_codes ?? codes, reasons: [notes.trim()], policy_version: "india-relief-v1" };
+    incident.review_required = false;
+    incident.updated_at = new Date().toISOString();
+    getStore().activityLogs.unshift({ id: randomUUID(), incident_id: id, actor_id: this.actor.profile.id, action: "routing_review_completed", new_value: incident.routing_decision, reason: notes.trim(), created_at: incident.updated_at });
     return incident;
   }
   async confirmDuplicate(reportId: string, targetIncidentId: string) {

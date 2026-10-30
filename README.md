@@ -3,7 +3,7 @@
 
 > **Tagline:** *From Damage Detection to Human Response.*
 
-Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that converts citizen field reports into structured incidents, calculates deterministic explainable priority scores, detects and correlates duplicate reports, and orchestrates response operations across emergency departments (Fire & Rescue, Electricity Department, Municipal/Road Services, and Medical Response).
+Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that converts citizen field reports into structured incidents, calculates deterministic explainable priority scores, detects and correlates duplicate reports, and orchestrates response operations across India-focused emergency services and relief partners, including Fire & Emergency Services, DISCOMs, public works, medical services, SDRF/NDRF, police, NGOs and volunteers.
 
 ---
 
@@ -22,8 +22,8 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 ### Core Innovations:
 1. **Explainable Deterministic Priority Scoring:** AI vision provides provisional observations; priority is strictly computed via a deterministic 7-factor mathematical formula (totaling 100% normalized weight).
 2. **Duplicate Incident Correlation:** Automatic candidate matching within a 150m spatial radius using the Haversine formula, comparing hazard categories and textual keywords, with human confirmation (Confirm Duplicate vs Keep Separate).
-3. **Multi-Agency Department Routing:** Deterministic capability matching ensuring specialized hazards (e.g. fallen 11kV conductors in water) route to appropriate agencies (Electricity Department + Municipal Dewatering).
-4. **Command Center Dark UI:** Restrained glassmorphic interface built with Next.js 15 App Router, Tailwind CSS, Lucide icons, and interactive Leaflet map integration.
+3. **Automatic response routing:** Validated AI suggestions and mandatory capability rules assign all suitable teams for clear routine reports. Uncertain, urgent, duplicate or specialist cases enter an admin queue. Completed response work needs admin verification; admins can request further work. See [India relief routing and database update](docs/INDIA_RELIEF_ROUTING.md).
+4. **Full-width light interface:** Responsive reporting and operations interface built with Next.js 15 App Router, Tailwind CSS, Lucide icons, and interactive Leaflet map integration.
 
 ---
 
@@ -36,11 +36,17 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 - **AI Integration:** Google Gemini vision via AI Studio (`GEMINI_MODEL`), with optional OpenRouter support.
 - **Deployment:** Vercel, Supabase
 
+### Incident address search
+
+In the report's location panel, enter an address with its area or city, then press **Search** or **Enter**. The best match is pinned automatically; select another match if needed, or drag the pin to the exact hazard. Live device location remains available. Failed searches preserve the selected pin. The map uses standard Leaflet/OpenStreetMap tiles, with no additional API key.
+
+The small demo uses [Nominatim's public service and usage policy](https://operations.osmfoundation.org/policies/nominatim/). Searches run only on explicit submission, with no autocomplete requests. Forward and reverse lookups share a bounded queue (at least 1.1 seconds between requests), a 24-hour cache, application identification and visible attribution. This limit is shared within one Node server process; multi-instance/serverless deployments must configure `GEOCODING_BASE_URL` to a suitable provider or a proxy with a shared application-wide limiter/cache. `GEOCODING_USER_AGENT` can identify your deployment. No database migration is required for address search.
+
 ---
 
 ## 3. User Roles & Demo Profiles
 
-Six portals are selected from the authenticated database profile. For a local demonstration, use the separate fictional accounts listed in [the integration guide](docs/INTEGRATION_HANDOFF.md). Production navigation has no role selector:
+Role-specific portals are selected from the authenticated database profile. For a local demonstration, use the separate fictional accounts listed in [the integration guide](docs/INTEGRATION_HANDOFF.md). Production navigation has no role selector:
 
 | Role | Demo User Profile | Responsibilities |
 |---|---|---|

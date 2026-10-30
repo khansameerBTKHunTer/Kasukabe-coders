@@ -6,7 +6,8 @@ import { POST as submit } from "../src/app/api/incidents/route";
 import { createDemoToken } from "../src/lib/auth/demo";
 import { SEED_PROFILES, resetStore } from "../src/lib/data-store";
 import { savePhoto } from "../src/lib/uploads";
-import { reverseGeocode } from "../src/lib/geocoding";
+import { reverseGeocode, searchAddress } from "../src/lib/geocoding";
+import { POST as findAddress } from "../src/app/api/geocode/search/route";
 const fixture = {
   category: "building_damage",
   title: "Observed damaged exterior wall",
@@ -190,8 +191,51 @@ async function main() {
       times[1] - times[0] >= 1000,
       "Public geocoding must stay below one request per second",
     );
+    globalThis.fetch = async (input) => {
+      times.push(Date.now());
+      const url = new URL(String(input));
+      assert.equal(url.pathname, "/search");
+      assert.equal(url.searchParams.get("q"), "neelasandra, bengaluru");
+      assert.equal(url.searchParams.get("limit"), "5");
+      return Response.json([
+        { display_name: "Neelasandra, Bengaluru, Karnataka", lat: "12.9586", lon: "77.61495" },
+        { display_name: "Invalid place", lat: "999", lon: "77" },
+        { display_name: "Neelasandra, Bengaluru, Karnataka", lat: "12.9586", lon: "77.61495" },
+        { display_name: "Blank coordinate", lat: "", lon: "77" },
+        { display_name: "Nearby landmark, Bengaluru", lat: "12.9591", lon: "77.6152" },
+      ]);
+    };
+    const [matches, repeatedMatches] = await Promise.all([
+      searchAddress("  Neelasandra,   Bengaluru  "),
+      searchAddress("neelasandra, bengaluru"),
+    ]);
+    assert.deepEqual(matches, [
+      { address: "Neelasandra, Bengaluru, Karnataka", lat: 12.9586, lng: 77.61495 },
+      { address: "Nearby landmark, Bengaluru", lat: 12.9591, lng: 77.6152 },
+    ]);
+    assert.deepEqual(matches, repeatedMatches);
+    assert.equal(times.length, 3, "Concurrent equivalent queries must share cached results");
+    assert.ok(times[2] - times[1] >= 1000, "Search and reverse lookup must share one rate limit");
+    const found = await findAddress(request("/api/geocode/search", { query: "Neelasandra, Bengaluru" }));
+    assert.equal(found.status, 200);
+    assert.deepEqual((await found.json()).results, matches);
+    for (const query of ["", "ab", "x".repeat(201), 123]) {
+      const invalid = await findAddress(request("/api/geocode/search", { query }));
+      assert.equal(invalid.status, 400);
+    }
+    const anonymous = await findAddress(new NextRequest("http://localhost/api/geocode/search", {
+      method: "POST", body: JSON.stringify({ query: "Neelasandra" }),
+    }));
+    assert.equal(anonymous.status, 401);
+    assert.equal(times.length, 3, "Invalid and unauthenticated queries must not contact the provider");
+    globalThis.fetch = async () => { throw new Error("private provider diagnostic"); };
+    const unavailable = await findAddress(request("/api/geocode/search", { query: "Different place" }));
+    assert.equal(unavailable.status, 503);
+    assert.ok(!(await unavailable.text()).includes("private provider diagnostic"));
+    globalThis.fetch = async () => Response.json([]);
+    assert.deepEqual(await searchAddress("No known address"), [], "No matches should allow manual pin selection");
     console.log(
-      "Vision and address tests passed: Gemini and OpenRouter image input, editable suggestions, cached submit, error sanitization, address cache and request spacing. External requests were mocked.",
+      "Vision and address tests passed: Gemini and OpenRouter image input, editable suggestions, cached submit, search authorization and validation, safe coordinates, shared lookup cache and request spacing. External requests were mocked.",
     );
   } finally {
     globalThis.fetch = original;

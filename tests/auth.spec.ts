@@ -184,10 +184,10 @@ for (const code of [null, "FIRE_RESCUE", "ELECTRICITY", "MUNICIPAL", "MEDICAL"])
         .selectOption({
           label: (
             {
-              FIRE_RESCUE: "Fire & Rescue",
-              ELECTRICITY: "Electricity Department",
-              MUNICIPAL: "Municipal / Road Services",
-              MEDICAL: "Medical Response",
+              FIRE_RESCUE: "Fire & Emergency Services",
+              ELECTRICITY: "Electricity Distribution Utility (DISCOM)",
+              MUNICIPAL: "Municipal / Panchayat & Public Works",
+              MEDICAL: "Health Department & Emergency Medical Services",
             } as Record<string, string>
           )[code],
         });

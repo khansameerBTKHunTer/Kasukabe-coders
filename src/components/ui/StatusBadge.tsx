@@ -30,6 +30,11 @@ export const IncidentStatusBadge: React.FC<{ status: IncidentStatus }> = ({
       color: "bg-indigo-500/10 text-indigo-700 border-indigo-200",
       icon: PlayCircle,
     },
+    pending_verification: {
+      label: "Awaiting work verification",
+      color: "bg-amber-50 text-amber-800 border-amber-200",
+      icon: Clock,
+    },
     resolved: {
       label: "Resolved",
       color: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
@@ -88,7 +93,7 @@ export const AssignmentStatusBadge: React.FC<{ status: AssignmentStatus }> = ({
       icon: PlayCircle,
     },
     resolved: {
-      label: "Resolved",
+      label: "Work completed",
       color: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
       icon: CheckCircle2,
     },

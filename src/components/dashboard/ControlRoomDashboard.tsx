@@ -92,6 +92,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
   const [severityFilter, setSeverityFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [reviewFilter, setReviewFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Duplicate review modal state
@@ -193,6 +194,9 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
 
   // Filter incidents
   const filteredIncidents = incidents.filter((incident) => {
+    if (reviewFilter === "routing" && incident.routing_decision?.mode !== "needs_review") return false;
+    if (reviewFilter === "work" && !incident.assignments?.some(a => a.completion_verification === "pending_review")) return false;
+    if (reviewFilter === "automatic" && incident.routing_decision?.mode !== "automatic") return false;
     if (severityFilter !== "all" && incident.severity !== severityFilter)
       return false;
     if (categoryFilter !== "all" && incident.category !== categoryFilter)
@@ -279,7 +283,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
         <StatCard
           title="Total Incidents"
           value={stats?.total ?? "—"}
-          subtitle="Lakshmipur Zone"
+          subtitle="Current incident area"
           icon={Activity}
           variant="default"
         />
@@ -407,6 +411,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
             <option value="open">Awaiting Assignment</option>
             <option value="assigned">Assigned</option>
             <option value="in_progress">In Progress</option>
+            <option value="pending_verification">Awaiting work verification</option>
             <option value="resolved">Resolved</option>
             <option value="closed">Closed</option>
           </select>
@@ -471,6 +476,18 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
           )}
         </div>
       </details>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+        <label className="flex items-center gap-2">Review queue
+          <select aria-label="Review queue" value={reviewFilter} onChange={event => setReviewFilter(event.target.value)} className="rounded-lg border border-slate-200 p-2">
+            <option value="all">All incidents</option>
+            <option value="routing">Needs admin routing ({incidents.filter(i => i.routing_decision?.mode === "needs_review").length})</option>
+            <option value="work">Work awaiting verification ({incidents.filter(i => i.assignments?.some(a => a.completion_verification === "pending_review")).length})</option>
+            <option value="automatic">Automatically assigned</option>
+          </select>
+        </label>
+        <span className="text-xs text-slate-500">Routine cases are assigned automatically. Review exceptions and verify completed work here.</span>
+      </div>
 
       {/* Main Command Center Grid: Map (Center-Left) + Ranked Queue & Detail Drawer (Right) */}
       <div className="operations-grid">

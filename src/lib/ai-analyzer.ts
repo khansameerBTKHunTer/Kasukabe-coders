@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEPARTMENT_CATALOG } from "./departments";
 import { AIAssessment, IncidentCategory, SeverityLevel } from "../types";
 
 // Zod schema enforcing the structured AI output contract
@@ -93,6 +94,10 @@ Safety Rules:
 - DO NOT assert fallen wires are live or de-energized; treat downed conductors as potential shock hazards with uncertainty.
 - DO NOT claim a damaged structure is "safe".
 - DO NOT claim this report is verified.
+- Recommend department CODES only from this directory: ${DEPARTMENT_CATALOG.map(d => `${d.code}: ${d.name} (${d.capabilities.join(", ")})`).join("; ")}.
+- SDRF and NDRF require administrative activation. Never claim a team is dispatched.
+- NGOs, Civil Defence and community volunteers may support relief in safe staging areas; never suggest them for electrical isolation, fire suppression, structural rescue or hazardous water rescue.
+- Set human_review_required to true for immediate danger, unclear images, uncertain routing, high severity or specialist activation. Use false only for a clear routine low/medium-severity case with no life-risk indicators. Reports always remain unverified until checked independently.
 - You must output valid, pure JSON without markdown backticks or commentary matching the requested schema.`;
 
   const userPrompt = `Analyze this disaster photo and reporter context:
@@ -107,12 +112,12 @@ Respond with ONLY a JSON object formatted strictly as follows:
   "secondary_hazards": ["inferred hazard 1", "inferred hazard 2"],
   "severity": "critical" | "high" | "medium" | "low",
   "confidence": 0.85,
-  "recommended_departments": ["Fire & Rescue", "Electricity Department"],
+  "recommended_departments": ["MUNICIPAL"],
   "assistance_required": "A concise, practical suggestion for the assistance needed based only on visible evidence and explicitly stated uncertainties, at most 600 characters.",
   "life_risk_indicators": ["specific observations indicating human risk"],
   "critical_infrastructure_indicators": ["bridges", "power lines", "arterial roads", etc.],
   "uncertainties": ["aspects obscured by water/smoke/distance"],
-  "human_review_required": true,
+  "human_review_required": true | false,
   "summary": "Objective two-sentence assessment of observed physical conditions, at most 400 characters."
 }`;
 

@@ -130,7 +130,7 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
           text: "#ffffff",
         },
       }[incident.priority_band] || {
-        bg: "#64748b",
+        bg: "#6d5947",
         ring: "rgba(100, 116, 139, 0.4)",
         text: "#ffffff",
       };
@@ -175,7 +175,7 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
       });
 
       const popupHtml = `
-        <div style="padding: 4px; min-width: 200px; color: #334155; font-family: system-ui, sans-serif;">
+        <div style="padding: 4px; min-width: 200px; color: #4f3c30; font-family: system-ui, sans-serif;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <span style="
               background: ${colors.bg}25;
@@ -188,18 +188,18 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
             ">
               ${incident.priority_band} (${incident.priority_score.toFixed(1)})
             </span>
-            <span style="font-size: 11px; color: #64748b; text-transform: uppercase;">
+            <span style="font-size: 11px; color: #6d5947; text-transform: uppercase;">
               ${incident.category.replace("_", " ")}
             </span>
           </div>
-          <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: #0f172a; line-height: 1.3;">
+          <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: #142841; line-height: 1.3;">
             ${escapeHtml(incident.title)}
           </h4>
-          <p style="margin: 0 0 8px 0; font-size: 11px; color: #64748b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          <p style="margin: 0 0 8px 0; font-size: 11px; color: #6d5947; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
             ${escapeHtml(incident.description)}
           </p>
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">
-            <span style="color: #2563eb;">Evidence: ${incident.evidence_count || 1} photo(s)</span>
+            <span style="color: #4c6680;">Evidence: ${incident.evidence_count || 1} photo(s)</span>
             <span style="color: ${incident.verification_status === "verified" ? "#10b981" : "#f59e0b"};">
               ● ${incident.verification_status}
             </span>

@@ -19,6 +19,8 @@ import { AIAssessmentCard } from "./AIAssessmentCard";
 import { PriorityBreakdownCard } from "./PriorityBreakdownCard";
 import { uploadPhoto } from "@/lib/upload-client";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { ResponseRoutingCard } from "./ResponseRoutingCard";
+import { ResponseWorkReview } from "./ResponseWorkReview";
 import {
   X,
   MapPin,
@@ -486,6 +488,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
         )}
 
         {/* Department Assignments Status */}
+        <ResponseRoutingCard incident={incident} departments={departments} isAdmin={isAdmin} onRefresh={onRefresh} />
         <div className="p-3.5 rounded-xl border border-slate-200 bg-white/60 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -520,6 +523,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                   <AssignmentStatusBadge
                     status={assignment.assignment_status}
                   />
+                  <ResponseWorkReview assignment={assignment} isAdmin={isAdmin} onRefresh={onRefresh} />
                 </div>
               ))}
             </div>
@@ -554,7 +558,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                     type="button"
                     disabled={isUpdatingStatus}
                     onClick={handleAcknowledge}
-                    className="rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
+                    className="rounded bg-primary px-3 py-2 text-xs font-semibold text-white"
                   >
                     Accept assignment
                   </button>
@@ -603,7 +607,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                 ) && (
                   <button
                     type="button"
-                    disabled={isUpdatingStatus}
+                    disabled={isUpdatingStatus || statusNote.trim().length < 10}
                     onClick={() => handleUpdateStatus("resolved")}
                     className="rounded border border-emerald-200 px-3 py-2 text-xs text-emerald-700"
                   >
@@ -620,7 +624,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                A rejection requires a reason of at least 5 characters.
+                Completion requires notes of at least 10 characters for admin verification. A rejection requires a reason of at least 5 characters.
               </p>
               <label className="block text-xs">
                 Additional field photograph
@@ -674,7 +678,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                 <button
                   type="submit"
                   disabled={isAssigning}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-600 text-white font-semibold rounded text-xs transition-colors shrink-0 flex items-center gap-1"
+                  className="px-3 py-1.5 bg-primary hover:bg-primary text-white font-semibold rounded text-xs transition-colors shrink-0 flex items-center gap-1"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Assign</span>
@@ -700,8 +704,8 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
                 incident.status !== "resolved" ||
                 !incident.assignments?.length ||
                 incident.assignments.some(
-                  (a) => a.assignment_status !== "resolved",
-                )
+                  (a) => a.assignment_status !== "rejected" && (a.assignment_status !== "resolved" || a.completion_verification !== "verified"),
+                ) || incident.routing_decision?.mode === "needs_review"
               }
               onClick={closeIncident}
               className="rounded border border-emerald-200 px-3 py-2 text-xs text-emerald-700 disabled:opacity-40"
@@ -709,7 +713,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({
               Close completed incident
             </button>
             <p className="text-xs text-slate-500">
-              Closure requires every department assignment to be resolved.
+              Closure requires admin verification of completed work and a completed routing review.
             </p>
           </div>
         )}

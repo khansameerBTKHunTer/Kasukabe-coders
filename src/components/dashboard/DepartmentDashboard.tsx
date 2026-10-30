@@ -30,7 +30,7 @@ const IncidentMap = dynamic(
 
 interface DepartmentDashboardProps {
   currentUser: Profile;
-  departmentCode: "FIRE_RESCUE" | "ELECTRICITY" | "MUNICIPAL" | "MEDICAL";
+  departmentCode: string;
   departmentName: string;
   departments: Department[];
 }
@@ -129,9 +129,6 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
               <span>{departmentName}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-sky-50 text-blue-700 font-mono border border-sky-200">
-                Authorized Responder Portal
-              </span>
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Logged in as{" "}

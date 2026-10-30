@@ -317,8 +317,9 @@ export function ReportForm({ onSuccess }: { onSuccess?: () => void }) {
           score={result.incident.priority_score}
         />
         <p className="max-w-lg text-sm text-slate-500">
-          Control Room will review the evidence and coordinate the response. AI
-          suggestions are provisional, not verification or dispatch.
+          {result.incident.routing_decision?.mode === "automatic"
+            ? "Response teams have been assigned automatically and are awaiting acknowledgement. Admins will verify completed work."
+            : "Your report needs admin review before response teams are assigned."}
         </p>
         {result.aiAssessment && (
           <div className="w-full max-w-3xl text-left">
@@ -667,8 +668,7 @@ export function ReportForm({ onSuccess }: { onSuccess?: () => void }) {
         </div>
         <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center">
           <p className="max-w-xl text-xs leading-relaxed text-slate-500">
-            Your report will be reviewed by Control Room. A recommendation does
-            not mean a team has been dispatched.
+            Clear routine reports are assigned automatically. Cases needing coordination go to an admin. Teams must acknowledge their tasks before responding.
           </p>
           <button
             type="submit"

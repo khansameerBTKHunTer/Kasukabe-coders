@@ -1,5 +1,5 @@
 export type UserRole =
-  "citizen" | "fire_rescue" | "electricity" | "municipal" | "medical" | "admin";
+  "citizen" | "fire_rescue" | "electricity" | "municipal" | "medical" | "relief_responder" | "admin";
 
 export type IncidentCategory =
   | "flood"
@@ -19,7 +19,7 @@ export type VerificationStatus =
   "unverified" | "verified" | "flagged" | "rejected";
 
 export type IncidentStatus =
-  "open" | "assigned" | "in_progress" | "resolved" | "closed";
+  "open" | "assigned" | "in_progress" | "pending_verification" | "resolved" | "closed";
 
 export type AssignmentStatus =
   | "pending"
@@ -108,6 +108,7 @@ export interface Incident {
   primary_department_id?: string | null;
   primary_department?: Department | null;
   status: IncidentStatus;
+  routing_decision?: RoutingDecision | null;
   evidence_count?: number;
   reports?: Report[];
   assignments?: Assignment[];
@@ -146,6 +147,19 @@ export interface Assignment {
   acknowledged_at?: string | null;
   completed_at?: string | null;
   notes?: string | null;
+  assignment_source?: "automatic" | "manual";
+  completion_verification?: "not_submitted" | "pending_review" | "verified" | "rework";
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_notes?: string | null;
+}
+
+export interface RoutingDecision {
+  mode: "automatic" | "needs_review" | "manual";
+  suggested_codes: string[];
+  assigned_codes: string[];
+  reasons: string[];
+  policy_version: "india-relief-v1";
 }
 
 export interface ActivityLog {

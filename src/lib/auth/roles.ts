@@ -1,18 +1,19 @@
 import type { Profile, UserRole } from "@/types";
 
-export const DEPARTMENT_ROLES = {
-  FIRE_RESCUE: "fire_rescue",
-  ELECTRICITY: "electricity",
-  MUNICIPAL: "municipal",
-  MEDICAL: "medical",
-} as const;
+import { DEPARTMENT_CATALOG, departmentRole } from "@/lib/departments";
+
+export const DEPARTMENT_ROLES: Record<string, UserRole> = Object.fromEntries(
+  DEPARTMENT_CATALOG.filter(department => department.role !== "admin")
+    .map(department => [department.code, department.role]),
+);
 export const ROLE_LABELS: Record<UserRole, string> = {
   citizen: "Citizen",
-  fire_rescue: "Fire & Rescue",
-  electricity: "Electricity Department",
-  municipal: "Municipal / Road Services",
-  medical: "Medical Response",
-  admin: "Control Room",
+  fire_rescue: "Fire & Emergency Services",
+  electricity: "Electricity Distribution Utility (DISCOM)",
+  municipal: "Municipal / Panchayat & Public Works",
+  medical: "Health & Emergency Medical Services",
+  relief_responder: "Relief Partner",
+  admin: "District Emergency Operations Centre",
 };
 export function profileAccessError(profile: Profile): string | null {
   if (!Object.prototype.hasOwnProperty.call(ROLE_LABELS, profile.role))
@@ -24,10 +25,7 @@ export function profileAccessError(profile: Profile): string | null {
   if (profile.role !== "citizen" && !profile.department_id)
     return "Your account has no assigned department. Contact the project administrator.";
   if (profile.role !== "citizen" && profile.role !== "admin") {
-    const code = Object.entries(DEPARTMENT_ROLES).find(
-      ([, role]) => role === profile.role,
-    )?.[0];
-    if (!profile.department || profile.department.code !== code)
+    if (!profile.department || departmentRole(profile.department.code) !== profile.role)
       return "Your role and department do not match. Contact the project administrator.";
   }
   return null;

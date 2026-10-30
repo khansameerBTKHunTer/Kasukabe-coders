@@ -42,6 +42,9 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
       </div>
 
       {/* Title & Category */}
+      {incident.routing_decision && <p className="mb-2 text-xs font-medium text-blue-700">
+        {incident.routing_decision.mode === "automatic" ? "Automatically assigned" : incident.routing_decision.mode === "needs_review" ? "Needs admin routing" : "Admin routing confirmed"}
+      </p>}
       <h3 className="text-sm font-semibold text-slate-900 line-clamp-1 mb-1">
         {incident.title}
       </h3>

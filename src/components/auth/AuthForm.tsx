@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { departmentDefinition } from "@/lib/departments";
 import type { Department } from "@/types";
 
 export type FormMode = "login" | "register" | "forgot" | "reset" | "demo";
 const field =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600";
 const titles: Record<FormMode, string> = {
   login: "Sign in",
   register: "Create an account",
@@ -62,9 +63,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
         if (!res.ok || !Array.isArray(data.departments)) throw new Error();
         setDepartments(
           data.departments.filter((d: Department) =>
-            ["FIRE_RESCUE", "ELECTRICITY", "MUNICIPAL", "MEDICAL"].includes(
-              d.code,
-            ),
+            departmentDefinition(d.code)?.selfRegistration,
           ),
         );
       })
@@ -274,7 +273,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                     onChange={(e) => setAccountType(e.target.value)}
                   >
                     <option value="citizen">Citizen</option>
-                    <option value="rescue">Rescue Department</option>
+                    <option value="rescue">Response / Relief Team</option>
                   </select>
                 </div>
                 <div>
@@ -372,7 +371,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                     aria-label={show ? "Hide password" : "Show password"}
                     aria-pressed={show}
                     onClick={() => setShow(!show)}
-                    className="absolute right-0 top-0 flex h-full w-11 items-center justify-center rounded-lg text-slate-500 focus:ring-2 focus:ring-sky-400"
+                    className="absolute right-0 top-0 flex h-full w-11 items-center justify-center rounded-lg text-slate-500 focus:ring-2 focus:ring-sky-600"
                   >
                     {show ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -410,7 +409,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                 (mode === "reset" && (!recoverySession || !!auth.recoveryError))
               }
               type="submit"
-              className="w-full rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+              className="w-full rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover disabled:cursor-wait disabled:opacity-50"
             >
               {busy
                 ? "Please wait…"
@@ -467,7 +466,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
             <p className="mt-2">
               citizen@civiscope.demo · fire@civiscope.demo ·
               power@civiscope.demo · municipal@civiscope.demo ·
-              medical@civiscope.demo · admin@civiscope.demo
+              medical@civiscope.demo · admin@civiscope.demo · ngo@civiscope.demo · volunteer@civiscope.demo · sdrf@civiscope.demo · ndrf@civiscope.demo · police@civiscope.demo · civil@civiscope.demo
             </p>
             {!auth.demoEnabled && (
               <p className="mt-2">

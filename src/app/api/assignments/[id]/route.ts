@@ -4,7 +4,8 @@ import { apiError } from "@/lib/auth/server";
 import { z } from "zod";
 
 const UpdateAssignmentSchema = z.object({
-  action: z.enum(["acknowledge", "update_status"]),
+  action: z.enum(["acknowledge", "update_status", "review_response"]),
+  decision: z.enum(["verified", "rework"]).optional(),
   status: z
     .enum(["en_route", "on_site", "in_progress", "resolved", "rejected"])
     .optional(),
@@ -33,7 +34,13 @@ export async function PATCH(
       );
     }
 
-    const { action, status, notes, userId } = validated.data;
+    const { action, status, notes, decision } = validated.data;
+
+    if (action === "review_response") {
+      if (!decision || !notes) return NextResponse.json({ success: false, error: "Provide a review decision and notes." }, { status: 400 });
+      const assignment = await IncidentService.reviewResponse(id, decision, notes);
+      return NextResponse.json({ success: true, assignment });
+    }
 
     if (action === "acknowledge") {
       const assignment = await IncidentService.acknowledgeAssignment(id);

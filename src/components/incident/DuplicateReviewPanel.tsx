@@ -173,7 +173,7 @@ export const DuplicateReviewPanel: React.FC<DuplicateReviewPanelProps> = ({
               <div className="text-[11px] space-y-1 text-slate-500 bg-white/50 p-2 rounded border border-slate-200/80">
                 {match.reasons.map((r, i) => (
                   <p key={i} className="flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-blue-600" />
+                    <span className="w-1 h-1 rounded-full bg-primary" />
                     <span>{r}</span>
                   </p>
                 ))}
@@ -185,7 +185,7 @@ export const DuplicateReviewPanel: React.FC<DuplicateReviewPanelProps> = ({
                   type="button"
                   onClick={() => handleConfirm(inc.id)}
                   disabled={isProcessing || loadingId !== null}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary text-white font-semibold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>

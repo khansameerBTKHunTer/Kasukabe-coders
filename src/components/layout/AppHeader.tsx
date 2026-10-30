@@ -47,7 +47,7 @@ export function AppHeader() {
               aria-current={pathname === "/" ? "page" : undefined}
               className="text-blue-700"
             >
-              {ROLE_LABELS[currentProfile.role]} portal
+              {currentProfile.department?.name ?? ROLE_LABELS[currentProfile.role]} portal
             </Link>
             <span className="max-w-44 truncate text-slate-500">
               {currentProfile.display_name}

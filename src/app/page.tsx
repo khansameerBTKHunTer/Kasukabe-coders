@@ -63,41 +63,16 @@ export default function Home() {
   // Direct rendering based on the verified account profile
   switch (currentProfile.role) {
     case "fire_rescue":
-      return (
-        <DepartmentDashboard
-          key={currentProfile.id}
-          currentUser={currentProfile}
-          departmentCode="FIRE_RESCUE"
-          departmentName="Fire & Rescue Operations"
-          departments={departments}
-        />
-      );
-
     case "electricity":
-      return (
-        <DepartmentDashboard
-          key={currentProfile.id}
-          currentUser={currentProfile}
-          departmentCode="ELECTRICITY"
-          departmentName="Electricity Department (Power Grid Control)"
-          departments={departments}
-        />
-      );
-
     case "municipal":
     case "medical":
+    case "relief_responder":
       return (
         <DepartmentDashboard
           key={currentProfile.id}
           currentUser={currentProfile}
-          departmentCode={
-            currentProfile.role === "municipal" ? "MUNICIPAL" : "MEDICAL"
-          }
-          departmentName={
-            currentProfile.role === "municipal"
-              ? "Municipal / Road Services"
-              : "Medical Response"
-          }
+          departmentCode={currentProfile.department!.code}
+          departmentName={currentProfile.department!.name}
           departments={departments}
         />
       );

@@ -28,6 +28,11 @@ Open the actual Local URL printed in the terminal, then `/demo-login`. All ficti
 | Municipal | municipal@civiscope.demo |
 | Medical | medical@civiscope.demo |
 | Control Room demo | admin@civiscope.demo |
+| SDRF / NDRF | sdrf@civiscope.demo / ndrf@civiscope.demo |
+| Police | police@civiscope.demo |
+| Civil Defence / Home Guards | civil@civiscope.demo |
+| NGO relief | ngo@civiscope.demo |
+| Community volunteers | volunteer@civiscope.demo |
 
 For real accounts, stop the server, configure `.env.local`, leave `CIVISCOPE_DEMO_MODE=false`, and run `npm run dev`. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. Keep the service key out of all `NEXT_PUBLIC_*` variables. Vision configuration is optional: without it reports are saved for human triage and no AI assessment is invented. Google AI Studio uses `AI_PROVIDER=gemini`, `GEMINI_API_KEY`, and `GEMINI_MODEL=gemini-3.5-flash-lite`. OpenRouter remains an alternative with its own provider/key settings.
 
@@ -39,6 +44,7 @@ Production commands are `npm run build` and `npm start`. Demo mode is opt-in eve
    - `supabase/migrations/20241030_initial_schema.sql`
    - `supabase/migrations/20261031_roles_and_access.sql`
    - `supabase/migrations/20261101_portal_integration.sql`
+   - `supabase/migrations/20261102_india_relief_routing.sql`
 2. Do not rerun already applied migrations. The legacy `seed.sql` is incompatible with real Auth identities and is deliberately blocked after hardening. Demo mode seeds its own isolated memory repository and does not need SQL seed data.
 3. Resolve legacy profile IDs/email conflicts using the instructions in `supabase/ACCESS_REVIEW.md`. Confirm that profile IDs match actual Auth user IDs, then validate `profiles_auth_user_fkey` before real deployment. Existing staff created under the older approval-based migration remain unchanged; only new registrations use the immediate citizen/rescue provisioning below.
 4. The final migration replaces the signup trigger with validated citizen/rescue provisioning, adds `organization_name`, extends assignment statuses, creates atomic server-only mutation RPCs, and provisions a private `incident-evidence` Storage bucket. It also removes direct client operational writes, including column-level report insert grants. Do not apply only the first migration and treat its original permissive policies as production-ready.
@@ -68,7 +74,7 @@ The registration selector loads actual IDs from `GET /api/departments`; it does 
 - Assignment PATCH retains `action: acknowledge` or `action: update_status`. Supported statuses now include `en_route` and `on_site`. Allowed transitions: pending → acknowledged/rejected; acknowledged → en_route/on_site/in_progress/rejected; en_route → on_site/in_progress/rejected; on_site → in_progress/resolved/rejected; in_progress → in_progress/resolved/rejected. Rejection requires at least five characters in `notes`. Completed assignments cannot be changed through responder actions. Server time maintains acknowledgement/completion timestamps.
 - `POST /api/assignments/:id/evidence` takes `{imagePath,description}` and stores an actual field report linked to the assigned incident, with an audit event. Existing assignment `notes` support observations. Audit actors come from the session, not the payload.
 - Admin assignment supports multiple departments through the existing assignment endpoint; each response must be acknowledged before another is considered saved. Active duplicate department assignments are idempotent. One department resolving never resolves an incident with unfinished assignments.
-- Incident PATCH adds `action: close`; an approved admin can close only a resolved incident whose assignments are all resolved. Verification, priority override with explanation, duplicate review, and PDF export are retained. Priority, severity, verification, department assignment status, and overall incident status remain distinct.
+- Incident PATCH adds `action: close`; an approved admin can close only after response work is verified and any routing review is completed. See [the India relief update](INDIA_RELIEF_ROUTING.md) for the current routing and verification contracts. Verification, priority override with explanation, duplicate review, and PDF export are retained. Priority, severity, verification, department assignment status, and overall incident status remain distinct.
 - `civiscope_command` and `civiscope_submit_report` can be executed only by `service_role`; they also check actor role/department and apply writes/audit changes atomically. The server derives that actor from verified Auth. Clients cannot forge an actor parameter to these RPCs.
 - Navigation opens Google Maps at the incident coordinates. It does not know disaster road closures.
 
@@ -82,6 +88,7 @@ npm run lint
 npm run test:engine
 npm run test:api
 npm run test:database
+npm run test:routing
 node --import tsx scripts/verify-workflows-inproc.ts
 npm run build
 ```

@@ -75,7 +75,7 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({
             onClick={() => setActiveTab("report")}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
               activeTab === "report"
-                ? "bg-blue-600 text-white shadow-glow"
+                ? "bg-primary text-white shadow-glow"
                 : "text-slate-500 hover:text-slate-900 bg-white/60"
             }`}
           >
@@ -91,7 +91,7 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({
             }}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
               activeTab === "my_reports"
-                ? "bg-blue-600 text-white shadow-glow"
+                ? "bg-primary text-white shadow-glow"
                 : "text-slate-500 hover:text-slate-900 bg-white/60"
             }`}
           >

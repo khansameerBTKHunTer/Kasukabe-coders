@@ -97,7 +97,7 @@ test("late model responses never overwrite observations the citizen has typed", 
     "An eyewitness observation typed while AI is loading.",
   );
 });
-test("the light login background loads locally and fills the page", async ({
+test("the atlas login background loads locally and fills the page", async ({
   page,
 }) => {
   await page.request.delete("/api/demo/session");
@@ -107,13 +107,13 @@ test("the light login background loads locally and fills the page", async ({
     await page
       .locator(".auth-screen")
       .evaluate((element) => getComputedStyle(element).backgroundImage),
-  ).toContain("civiscope-city-background.webp");
+  ).toContain("civiscope-rescue-atlas.webp");
   expect(
-    (await page.request.get("/images/civiscope-city-background.webp")).ok(),
+    (await page.request.get("/images/civiscope-rescue-atlas.webp")).ok(),
   ).toBeTruthy();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({
-    path: "test-results/login-light-desktop.png",
+    path: "test-results/login-atlas-desktop.png",
     fullPage: true,
   });
 });

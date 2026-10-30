@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 });
 test('multiple department assignments, evidence, independent resolution and admin closure work', async ({ page }) => {
   await page.getByRole('button', { name: /Open incident:.*Partial Structural Collapse/ }).click();
-  await page.getByLabel('Assign response department').selectOption({ label: 'Medical Response' });
+  await page.getByLabel('Assign response department').selectOption({ label: 'Health Department & Emergency Medical Services' });
   const assigned = page.waitForResponse(response => response.url().includes('/assign') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Assign', exact: true }).click();
   expect((await assigned).ok()).toBeTruthy();
@@ -30,6 +30,7 @@ test('multiple department assignments, evidence, independent resolution and admi
   await page.getByRole('button', { name: 'Upload evidence with observation' }).click();
   expect((await evidence).ok()).toBeTruthy();
   await transition(page, 'In progress');
+  await page.getByLabel('Field observations or rejection reason').fill('Assigned work completed and checked at the incident site.');
   await transition(page, 'Resolve assignment');
   await expect(page.getByText('Responding', { exact: true })).toBeVisible();
   await login(page, 'fire');
@@ -37,9 +38,17 @@ test('multiple department assignments, evidence, independent resolution and admi
   await transition(page, 'En route');
   await transition(page, 'On site');
   await transition(page, 'In progress');
+  await page.getByLabel('Field observations or rejection reason').fill('Assigned work completed and checked at the incident site.');
   await transition(page, 'Resolve assignment');
   await login(page, 'admin');
   await page.getByRole('button', { name: /Open incident:.*Partial Structural Collapse/ }).click();
+  await expect(page.getByRole('button', { name: 'Close completed incident' })).toBeDisabled();
+  for (const name of ['Fire & Emergency Services', 'Health Department & Emergency Medical Services']) {
+    await page.getByLabel(`Work review notes for ${name}`, { exact: true }).fill('Field photographs and completion notes checked by the coordinator.');
+    const review = page.waitForResponse(response => response.url().includes('/api/assignments/') && response.request().method() === 'PATCH');
+    await page.getByLabel(`Work review notes for ${name}`, { exact: true }).locator('..').getByRole('button', { name: 'Verify work', exact: true }).click();
+    expect((await review).ok()).toBeTruthy();
+  }
   await expect(page.getByRole('button', { name: 'Close completed incident' })).toBeEnabled();
   const closed = page.waitForResponse(response => response.url().includes('/api/incidents/') && response.request().method() === 'PATCH');
   await page.getByRole('button', { name: 'Close completed incident' }).click();

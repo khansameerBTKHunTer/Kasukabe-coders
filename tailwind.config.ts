@@ -1,5 +1,17 @@
 import type { Config } from "tailwindcss";
 
+// Sampled from the supplied ivory / pearl / slate-blue / navy / chocolate swatch.
+const atlasBlue = {
+  50: "#eef1f3", 100: "#dce3e9", 200: "#bccbd7", 300: "#9eafc1",
+  400: "#8b9fb5", 500: "#798da6", 600: "#4c6680", 700: "#304b66",
+  800: "#243c55", 900: "#142841", 950: "#0e1d30",
+};
+const parchment = {
+  50: "#fffbf1", 100: "#f5edde", 200: "#e7d6c2", 300: "#cbb79e",
+  400: "#9c846c", 500: "#6d5947", 600: "#64513f", 700: "#4f3c30",
+  800: "#392e28", 900: "#142841", 950: "#0e1d30",
+};
+
 const config: Config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,41 +22,54 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#f4f6f8",
-        foreground: "#172b3a",
+        background: "#f2e8d9",
+        foreground: "#142841",
+        white: "#fff9ed",
+        slate: parchment,
+        blue: atlasBlue,
+        sky: atlasBlue,
+        indigo: atlasBlue,
+        purple: atlasBlue,
+        brand: {
+          ivory: "#fffce9",
+          pearl: "#e7d6c2",
+          blue: "#798da6",
+          navy: "#142841",
+          chocolate: "#674635",
+        },
         card: {
-          DEFAULT: "#ffffff",
-          foreground: "#172b3a",
-          border: "#e2e8f0",
+          DEFAULT: "#fff9ed",
+          foreground: "#142841",
+          border: "#cbb79e",
         },
         popover: {
-          DEFAULT: "#ffffff",
-          foreground: "#172b3a",
+          DEFAULT: "#fff9ed",
+          foreground: "#142841",
         },
         primary: {
-          DEFAULT: "#2563eb", // Sky / cyan accent
-          foreground: "#ffffff",
-          hover: "#1d4ed8",
+          DEFAULT: "#674635",
+          foreground: "#fffce9",
+          hover: "#503627",
         },
         secondary: {
-          DEFAULT: "#f1f5f9",
-          foreground: "#94a3b8",
+          DEFAULT: "#e7d6c2",
+          foreground: "#4f3c30",
         },
         muted: {
-          DEFAULT: "#f1f5f9",
-          foreground: "#64748b",
+          DEFAULT: "#f5edde",
+          foreground: "#6d5947",
         },
         accent: {
-          DEFAULT: "#2563eb",
-          foreground: "#172b3a",
+          DEFAULT: "#798da6",
+          foreground: "#142841",
         },
         destructive: {
           DEFAULT: "#ef4444",
-          foreground: "#172b3a",
+          foreground: "#142841",
         },
-        border: "#e2e8f0",
-        input: "#f8fafc",
-        ring: "#38bdf8",
+        border: "#cbb79e",
+        input: "#fffbf1",
+        ring: "#4c6680",
         // Disaster severity status bands
         severity: {
           critical: "#ef4444", // Red (80-100)
@@ -59,8 +84,8 @@ const config: Config = {
         sm: "0.375rem",
       },
       boxShadow: {
-        glow: "0 1px 3px rgba(23, 43, 58, 0.08)",
-        "critical-glow": "0 1px 3px rgba(23, 43, 58, 0.08)",
+        glow: "0 1px 3px rgba(103, 70, 53, 0.10)",
+        "critical-glow": "0 1px 3px rgba(103, 70, 53, 0.10)",
       },
     },
   },

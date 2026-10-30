@@ -5,9 +5,11 @@ import {
   LocateFixed,
   MapPin,
   Navigation,
+  Search,
   Square,
 } from "lucide-react";
 import type * as Leaflet from "leaflet";
+import type { AddressMatch } from "@/types/geocoding";
 interface Coords {
   lat: number;
   lng: number;
@@ -57,6 +59,18 @@ export function LocationPickerMap({
   const [address, setAddress] = useState(""),
     [addressLoading, setAddressLoading] = useState(false),
     [addressError, setAddressError] = useState("");
+  const [addressQuery, setAddressQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<AddressMatch[]>([]);
+  const [searchMessage, setSearchMessage] = useState("");
+  const searchRequest = useRef<AbortController | null>(null);
+  const reverseRequest = useRef<AbortController | null>(null);
+  const matchedAddress = useRef<AddressMatch | null>(null);
+  const cancelSearch = useCallback(() => {
+    searchRequest.current?.abort();
+    searchRequest.current = null;
+    setSearching(false);
+  }, []);
   const [mapError, setMapError] = useState(""),
     [mapReady, setMapReady] = useState(false),
     [deviceTime, setDeviceTime] = useState("");
@@ -89,7 +103,7 @@ export function LocationPickerMap({
       });
   }, []);
   const choose = useCallback(
-    (lat: number, lng: number) => {
+    (lat: number, lng: number, knownAddress?: string) => {
       if (
         !Number.isFinite(lat) ||
         !Number.isFinite(lng) ||
@@ -100,15 +114,77 @@ export function LocationPickerMap({
       )
         return;
       followFirstFix.current = false;
+      cancelSearch();
       const a = Math.round(lat * 1e6) / 1e6,
         b = Math.round(lng * 1e6) / 1e6;
+      matchedAddress.current = knownAddress ? { lat: a, lng: b, address: knownAddress } : null;
+      if (knownAddress) {
+        // Keep the search result's address and avoid a redundant reverse lookup.
+        reverseRequest.current?.abort();
+        setAddress(knownAddress);
+        setAddressLoading(false);
+        setAddressError("");
+        callbacks.current.onAddressChange?.(knownAddress);
+      } else {
+        setSearchResults([]);
+        setSearchMessage("");
+      }
       selected.current = { lat: a, lng: b };
       callbacks.current.onLocationChange(a, b);
       movePin(a, b);
     },
-    [movePin],
+    [movePin, cancelSearch],
   );
   chooseRef.current = choose;
+  const selectAddress = (match: AddressMatch) => {
+    choose(match.lat, match.lng, match.address);
+    movePin(match.lat, match.lng, true);
+  };
+  const findAddress = async () => {
+    cancelSearch();
+    setSearchResults([]);
+    const query = addressQuery.trim();
+    if (query.length < 3) {
+      setSearchMessage("Enter an address with at least 3 characters, including the area or city.");
+      return;
+    }
+    // A late GPS fix must not override a location chosen through address search.
+    followFirstFix.current = false;
+    const controller = new AbortController();
+    searchRequest.current = controller;
+    setSearching(true);
+    setSearchMessage("");
+    try {
+      const response = await fetch("/api/geocode/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+        signal: controller.signal,
+      });
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data.results))
+        throw new Error(data.error || "Address search is unavailable. Retry or drop a pin on the map.");
+      if (controller.signal.aborted) return;
+      const results: AddressMatch[] = data.results;
+      setSearchResults(results);
+      if (results.length) {
+        selectAddress(results[0]);
+        setSearchMessage(results.length > 1
+          ? "Best match pinned. Choose another match below if needed."
+          : "Address pinned. Drag the pin to fine-tune the incident location.");
+      } else {
+        setSearchMessage("No address found. Add the city or a nearby landmark, or drop a pin on the map.");
+      }
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setSearchMessage(error instanceof Error ? error.message : "Address search is unavailable. Retry or drop a pin on the map.");
+    } finally {
+      if (!controller.signal.aborted) {
+        searchRequest.current = null;
+        setSearching(false);
+      }
+    }
+  };
   const renderDevice = useCallback(() => {
     const position = device.current,
       L = leaflet.current,
@@ -119,7 +195,7 @@ export function LocationPickerMap({
     else
       deviceMarker.current = L.circleMarker(point, {
         radius: 7,
-        fillColor: "#2563eb",
+        fillColor: "#4c6680",
         fillOpacity: 1,
         color: "#fff",
         weight: 3,
@@ -133,8 +209,8 @@ export function LocationPickerMap({
     else
       accuracyCircle.current = L.circle(point, {
         radius: Math.min(position.accuracy, 5000),
-        color: "#2563eb",
-        fillColor: "#60a5fa",
+        color: "#4c6680",
+        fillColor: "#798da6",
         fillOpacity: 0.12,
         weight: 1,
       }).addTo(instance);
@@ -147,6 +223,7 @@ export function LocationPickerMap({
     setLocating(false);
   }, []);
   const startTracking = useCallback(() => {
+    cancelSearch();
     if (!window.isSecureContext) {
       setGpsStatus(
         "Location requires HTTPS or localhost. You can still drop the incident pin on the map.",
@@ -216,7 +293,7 @@ export function LocationPickerMap({
       );
       setTracking(true);
     } else navigator.geolocation.getCurrentPosition(success, failure, options);
-  }, [choose, movePin, renderDevice, stopTracking]);
+  }, [choose, movePin, renderDevice, stopTracking, cancelSearch]);
   useEffect(() => {
     active.current = true;
     let cancelled = false;
@@ -277,6 +354,7 @@ export function LocationPickerMap({
     return () => {
       cancelled = true;
       active.current = false;
+      searchRequest.current?.abort();
       resize?.disconnect();
       if (watch.current !== null)
         navigator.geolocation?.clearWatch(watch.current);
@@ -311,12 +389,22 @@ export function LocationPickerMap({
   }, [startTracking]);
   useEffect(() => {
     if (initialLat === undefined || initialLng === undefined) {
+      matchedAddress.current = null;
       setAddress("");
+      setAddressLoading(false);
       setAddressError("");
       callbacks.current.onAddressChange?.("");
       return;
     }
+    const match = matchedAddress.current;
+    if (match && match.lat === initialLat && match.lng === initialLng) {
+      setAddress(match.address);
+      setAddressLoading(false);
+      setAddressError("");
+      return;
+    }
     const controller = new AbortController();
+    reverseRequest.current = controller;
     setAddressLoading(true);
     setAddress("");
     setAddressError("");
@@ -368,8 +456,68 @@ export function LocationPickerMap({
         <MapPin className="text-blue-600" size={21} />
       </div>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">
-        Use your device location, then drag the red pin to the exact hazard.
+        Search an address or use your device location, then drag the red pin to the exact hazard.
       </p>
+      <div className="mt-4">
+        <label htmlFor="incident-address-query" className="text-xs font-semibold text-slate-600">
+          Search incident address
+        </label>
+        <div className="mt-2 flex gap-2">
+          <input
+            id="incident-address-query"
+            type="search"
+            autoComplete="off"
+            maxLength={200}
+            value={addressQuery}
+            placeholder="Area, street or landmark, city"
+            aria-describedby="incident-address-search-status"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+            onChange={(event) => {
+              cancelSearch();
+              setAddressQuery(event.target.value);
+              setSearchResults([]);
+              setSearchMessage("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                if (!event.nativeEvent.isComposing && !searching) void findAddress();
+              }
+            }}
+          />
+          <button
+            type="button"
+            disabled={searching}
+            onClick={() => void findAddress()}
+            className="primary-button flex shrink-0 items-center gap-1.5"
+          >
+            <Search size={14} aria-hidden="true" />
+            {searching ? "Searching…" : "Search"}
+          </button>
+        </div>
+        <p id="incident-address-search-status" role="status" className="mt-2 text-xs leading-relaxed text-slate-500">
+          {searching ? "Finding matching addresses…" : searchMessage}
+        </p>
+        {searchResults.length > 1 && (
+          <ul aria-label="Matching addresses" className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-1">
+            {searchResults.map((match, index) => (
+              <li key={`${match.lat},${match.lng},${index}`}>
+                <button
+                  type="button"
+                  aria-pressed={matchedAddress.current?.address === match.address && matchedAddress.current?.lat === Math.round(match.lat * 1e6) / 1e6 && matchedAddress.current?.lng === Math.round(match.lng * 1e6) / 1e6}
+                  className="w-full rounded-md px-2 py-2 text-left text-xs leading-relaxed text-slate-700 hover:bg-slate-100 aria-pressed:bg-blue-50 aria-pressed:text-blue-700"
+                  onClick={() => {
+                    selectAddress(match);
+                    setSearchMessage("Address pinned. Drag the pin to fine-tune the incident location.");
+                  }}
+                >
+                  {match.address}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <div className="location-map-frame" data-testid="location-map-panel">
         <div
           ref={container}

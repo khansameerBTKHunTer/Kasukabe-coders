@@ -14,39 +14,11 @@ import { calculatePriorityScore } from './priority-engine';
 import { recommendDepartments, KNOWN_DEPARTMENTS, getDepartmentIdByName } from './department-router';
 import { findDuplicateCandidates } from './duplicate-detector';
 
+import { SEED_DEPARTMENT_CATALOG } from "./departments";
+import { planResponse, responseStatus } from "./response-routing";
+
 // Seed Departments
-export const SEED_DEPARTMENTS: Department[] = [
-  {
-    id: '11111111-1111-1111-1111-111111111111',
-    name: 'Fire & Rescue',
-    code: 'FIRE_RESCUE',
-    capabilities: ['structural_collapse', 'fire_suppression', 'flood_rescue', 'hazmat'],
-  },
-  {
-    id: '22222222-2222-2222-2222-222222222222',
-    name: 'Electricity Department',
-    code: 'ELECTRICITY',
-    capabilities: ['grid_isolation', 'fallen_line_repair', 'substation_safety', 'power_restoration'],
-  },
-  {
-    id: '33333333-3333-3333-3333-333333333333',
-    name: 'Municipal / Road Services',
-    code: 'MUNICIPAL',
-    capabilities: ['debris_clearing', 'road_reopening', 'pump_drainage', 'civil_repairs'],
-  },
-  {
-    id: '44444444-4444-4444-4444-444444444444',
-    name: 'Medical Response',
-    code: 'MEDICAL',
-    capabilities: ['paramedics', 'casualty_triage', 'field_ambulance', 'emergency_evacuation'],
-  },
-  {
-    id: '55555555-5555-5555-5555-555555555555',
-    name: 'Control Room / Disaster Management',
-    code: 'CONTROL_ROOM',
-    capabilities: ['overall_coordination', 'inter_agency_command', 'resource_dispatch', 'public_alerts'],
-  },
-];
+export const SEED_DEPARTMENTS = SEED_DEPARTMENT_CATALOG;
 
 // Demo Profiles
 export const SEED_PROFILES: Profile[] = [
@@ -104,6 +76,13 @@ export const SEED_PROFILES: Profile[] = [
     department: SEED_DEPARTMENTS[3],
   },
 ];
+
+// Each added demo responder remains scoped to its own department.
+for (const [index, code] of ["SDRF", "NDRF", "POLICE", "CIVIL_DEFENCE", "NGO_RELIEF", "COMMUNITY_VOLUNTEERS"].entries()) {
+  const department = SEED_DEPARTMENTS.find(d => d.code === code)!;
+  const emailName = ["sdrf", "ndrf", "police", "civil", "ngo", "volunteer"][index];
+  SEED_PROFILES.push({ id: `a0000000-0000-0000-0000-${String(index + 7).padStart(12, "0")}`, email: `${emailName}@civiscope.demo`, display_name: `[Simulated] ${department.name}`, role: "relief_responder", approval_status: "approved", department_id: department.id, department });
+}
 
 export function getInitialSeedData() {
   const incidents: Incident[] = [
@@ -639,7 +618,7 @@ export const IncidentService = {
         category: params.aiAssessment?.category,
         description: params.description,
       },
-      store.incidents,
+      store.incidents.filter(i => !['resolved', 'closed'].includes(i.status)),
       150
     );
 
@@ -659,6 +638,7 @@ export const IncidentService = {
       params.aiAssessment?.secondary_hazards || []
     );
     const recommendedDeptId = getDepartmentIdByName(deptRecommendation.primaryDepartmentName);
+    const routing = planResponse({ ...params, priorityBand: priorityResult.priorityBand, hasDuplicateCandidates: duplicateMatches.some(m => m.duplicateConfidence !== 'unlikely'), departments: SEED_DEPARTMENTS });
 
     // 4. Create new incident entity initially (unless confirmed as duplicate)
     const incidentId = `inc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -677,10 +657,11 @@ export const IncidentService = {
       priority_score: priorityResult.totalScore,
       priority_band: priorityResult.priorityBand,
       priority_reasons: priorityResult.reasons,
-      review_required: priorityResult.urgentReviewRequired || (params.sourceType === 'news_public'),
+      review_required: routing.mode === 'needs_review',
+      routing_decision: routing,
       verification_status: 'unverified',
-      primary_department_id: recommendedDeptId || null,
-      primary_department: SEED_DEPARTMENTS.find(d => d.id === recommendedDeptId) || null,
+      primary_department_id: routing.mode === 'automatic' ? recommendedDeptId || null : null,
+      primary_department: routing.mode === 'automatic' ? SEED_DEPARTMENTS.find(d => d.id === recommendedDeptId) || null : null,
       status: 'open',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -692,6 +673,14 @@ export const IncidentService = {
     // Persist to store
     store.reports.unshift(newReport);
     store.incidents.unshift(newIncident);
+    if (routing.mode === 'automatic') {
+      for (const code of routing.assigned_codes) {
+        const department = SEED_DEPARTMENTS.find(d => d.code === code)!;
+        store.assignments.unshift({ id: `auto-${incidentId}-${code}`, incident_id: incidentId, department_id: department.id, department, assigned_by: null, assignment_status: 'pending', assignment_source: 'automatic', completion_verification: 'not_submitted', assigned_at: new Date().toISOString(), notes: routing.reasons.join(' ') });
+      }
+      newIncident.status = 'assigned';
+    }
+    store.activityLogs.unshift({ id: `routing-${incidentId}`, incident_id: incidentId, actor_id: null, action: routing.mode === 'automatic' ? 'response_auto_assigned' : 'routing_review_required', new_value: routing, reason: routing.reasons.join(' '), created_at: new Date().toISOString() });
 
     // Add activity log
     const log: ActivityLog = {
@@ -792,6 +781,7 @@ export const IncidentService = {
       throw new Error('Invalid incident or department ID');
     }
 
+    if (incident.status === 'closed' || department.code === 'CONTROL_ROOM') throw new Error('Select an open incident and response department');
     const existing = store.assignments.find(a => a.incident_id === incidentId && a.department_id === departmentId && !['resolved', 'rejected'].includes(a.assignment_status));
     if (existing) return existing;
     const previousStatus = incident.status;
@@ -803,13 +793,15 @@ export const IncidentService = {
       department_id: departmentId,
       department,
       assigned_by: assignedBy || null,
+      assignment_source: 'manual',
+      completion_verification: 'not_submitted',
       assignment_status: 'pending',
       assigned_at: new Date().toISOString(),
       notes: notes || null,
     };
 
     store.assignments.unshift(newAssignment);
-    if (!incident.primary_department_id) {
+    if (!store.assignments.some(a => a.incident_id === incidentId && a.department_id === incident.primary_department_id && a.assignment_status !== 'rejected')) {
       incident.primary_department_id = departmentId;
       incident.primary_department = department;
     }
@@ -873,6 +865,10 @@ export const IncidentService = {
     assignment.assignment_status = status;
     if (status === 'resolved') {
       assignment.completed_at = new Date().toISOString();
+      assignment.completion_verification = 'pending_review';
+      assignment.reviewed_by = null;
+      assignment.reviewed_at = null;
+      assignment.review_notes = null;
     }
     if (notes) {
       assignment.notes = assignment.notes ? `${assignment.notes} | Update: ${notes}` : notes;
@@ -883,14 +879,11 @@ export const IncidentService = {
       incident.updated_at = new Date().toISOString();
       if (status === 'in_progress') incident.status = 'in_progress';
     }
-    if (incident && status === 'resolved') {
-      // Check if all assignments for this incident are resolved
-      const otherAssignments = store.assignments.filter(
-        a => a.incident_id === incident.id && a.id !== assignmentId
-      );
-      const allDone = otherAssignments.every(a => a.assignment_status === 'resolved');
-      if (allDone) {
-        incident.status = 'resolved';
+    if (incident) {
+      incident.status = responseStatus(store.assignments.filter(a => a.incident_id === incident.id));
+      if (status === 'rejected') {
+        incident.review_required = true;
+        incident.routing_decision = { mode: 'needs_review', suggested_codes: incident.routing_decision?.suggested_codes ?? [], assigned_codes: incident.routing_decision?.assigned_codes ?? [], reasons: ['A response team declined its assignment. Admin reassignment is required.'], policy_version: 'india-relief-v1' };
       }
     }
 
@@ -898,7 +891,7 @@ export const IncidentService = {
       id: `log-${Date.now()}`,
       incident_id: assignment.incident_id,
       actor_id: userId || null,
-      action: status === 'resolved' ? 'incident_resolved' : 'status_updated',
+      action: status === 'resolved' ? 'response_completion_submitted' : 'status_updated',
       old_value: { status: oldStatus },
       new_value: { status, notes },
       reason: notes || `Response status updated to ${status}.`,

@@ -164,7 +164,7 @@ export const PriorityBreakdownCard: React.FC<PriorityBreakdownCardProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-600 text-white text-xs font-semibold rounded transition-colors disabled:opacity-50"
+                className="w-full py-1.5 bg-primary hover:bg-primary text-white text-xs font-semibold rounded transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? 'Recording Override...' : 'Confirm Priority Override'}
               </button>

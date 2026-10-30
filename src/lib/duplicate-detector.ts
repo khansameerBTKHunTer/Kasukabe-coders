@@ -72,7 +72,7 @@ export function findDuplicateCandidates(
         newReport.description.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/)
       );
       const incidentWords = new Set(
-        incident.description.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/)
+        (incident.description ?? '').toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/)
       );
       
       let commonWordCount = 0;

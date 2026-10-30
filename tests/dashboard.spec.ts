@@ -61,7 +61,7 @@ for (const width of [375, 768, 1440]) {
     await fits();
     await loginAs(page, "fire@civiscope.demo");
     await expect(
-      page.getByRole("heading", { name: "Fire & Rescue Operations" }),
+      page.getByRole("heading", { name: "Fire & Emergency Services" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Open incident:/ }),
@@ -78,7 +78,7 @@ for (const width of [375, 768, 1440]) {
     await fits();
     await loginAs(page, "municipal@civiscope.demo");
     await expect(
-      page.getByRole("heading", { name: /Municipal \/ Road Services/ }),
+      page.getByRole("heading", { name: /Municipal \/ Panchayat & Public Works/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Open incident:/ }),
@@ -89,7 +89,7 @@ for (const width of [375, 768, 1440]) {
     await fits();
     await loginAs(page, "medical@civiscope.demo");
     await expect(
-      page.getByRole("heading", { name: /Medical Response/ }),
+      page.getByRole("heading", { name: /Health Department & Emergency Medical Services/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Open incident:/ }),
