@@ -31,7 +31,7 @@ export async function withHostedDemo<T>(operation: () => Promise<T>): Promise<T>
         contentType: "application/json", upsert: false, cacheControl: "0",
       });
       if (!lock.error) { locked = true; break; }
-      if (!/already exists|duplicate|resource already/i.test(lock.error.message) && !["409", "400"].includes(lock.error.statusCode))
+      if (!/already exists|duplicate|resource already/i.test(lock.error.message) && !["409", "400"].includes(lock.error.statusCode ?? ""))
         throw new ApiError(503, "Shared demo storage is unavailable. Retry shortly.");
       const current = await bucket.download("state.lock");
       if (current.data) {
