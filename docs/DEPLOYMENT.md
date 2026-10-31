@@ -14,6 +14,12 @@ The `incident-evidence` bucket must stay private, allow only JPEG/PNG/WebP, and 
 
 Use Node.js 22 or a newer supported LTS release. On Vercel import the repository as Next.js, install with `npm ci`, build with `npm run build`, and let the Next.js integration manage the output directory. On a Node host run `npm ci`, `npm run build` and `PORT=3000 npm start` behind an HTTPS reverse proxy. Configure persistent logs and health checks against `/api/health`; this endpoint proves the application is running, not that a hosted migration has been applied.
 
+Vercel builds use the standard `.next` directory. Local production builds continue
+to use `.next-production` to remain separate from the local development server.
+On Vercel, address lookups require an explicit `GEOCODING_BASE_URL`; when it is
+unset, the UI keeps GPS/manual pin selection available and explains that address
+lookup is unconfigured instead of falling back to the public demo provider.
+
 Set these variables in the hosting project's environment **before building**:
 
 | Variable | Purpose |

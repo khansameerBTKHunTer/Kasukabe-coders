@@ -16,6 +16,8 @@ async function lookup<T>(
   params: Record<string, string>,
   parse: (data: unknown) => T,
 ): Promise<T> {
+  if (process.env.VERCEL && !process.env.GEOCODING_BASE_URL?.trim())
+    throw new ApiError(503, "Address lookup is not configured on this deployment. Use device location or drop a pin on the map; your selected location is kept.");
   const state = (globals.civiscopeAddressLookups ??= {
     cache: new Map(),
     queue: Promise.resolve(),

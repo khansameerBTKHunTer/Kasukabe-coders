@@ -9,6 +9,7 @@ import { recommendDepartments, reportCategory } from "@/lib/department-router";
 import { findDuplicateCandidates } from "@/lib/duplicate-detector";
 import { planResponse, responseStatus } from "@/lib/response-routing";
 import { validatePhotoBytes } from "@/lib/photo-validation";
+import { DEMO_BUCKET, hostedDemo, withHostedDemo } from "@/lib/hosted-demo";
 
 export const EVIDENCE_BUCKET = "incident-evidence";
 const uploadValidation = globalThis as typeof globalThis & { civiscopeVerifiedPhotos?: Map<string, number> };
@@ -43,14 +44,19 @@ function failure(error: { code?: string; message: string } | null) {
 }
 export async function signedPhoto(path: string) {
   if (!path?.startsWith("supabase://")) return path;
-  const key = path.slice(`supabase://${EVIDENCE_BUCKET}/`.length);
+  const { bucket, key } = photoObject(path);
   const { data, error } = await createAdminClient()
-    .storage.from(EVIDENCE_BUCKET)
+    .storage.from(bucket)
     .createSignedUrl(key, 900);
   return error ? "" : data.signedUrl;
 }
+export function photoObject(path: string) {
+  const match = /^supabase:\/\/(incident-evidence|civiscope-demo)\/(.+)$/.exec(path);
+  if (!match) throw new ApiError(400, "Invalid photograph path.");
+  return { bucket: match[1], key: match[2] };
+}
 export async function validatePhoto(actor: Actor, path: string) {
-  if (actor.demo) {
+  if (actor.demo && !hostedDemo()) {
     if (!/^\/api\/uploads\/[a-f0-9-]{36}$/.test(path))
       throw new ApiError(
         400,
@@ -61,14 +67,15 @@ export async function validatePhoto(actor: Actor, path: string) {
     if (upload.owner !== actor.profile.id)
       throw new ApiError(403, "This photograph belongs to another account.");
   } else {
-    const prefix = `supabase://${EVIDENCE_BUCKET}/${actor.profile.id}/`;
+    const bucketName = actor.demo ? DEMO_BUCKET : EVIDENCE_BUCKET;
+    const prefix = `supabase://${bucketName}/${actor.profile.id}/`;
     if (
       !path.startsWith(prefix) ||
       !/^[a-f0-9-]{36}\.(jpg|png|webp)$/.test(path.slice(prefix.length))
     )
       throw new ApiError(400, "Use a photograph uploaded by your account.");
     const { data, error } = await createAdminClient()
-      .storage.from(EVIDENCE_BUCKET)
+      .storage.from(bucketName)
       .list(actor.profile.id, { search: path.slice(prefix.length) });
     if (error || !data?.some((file) => file.name === path.slice(prefix.length)))
       throw new ApiError(
@@ -80,8 +87,8 @@ export async function validatePhoto(actor: Actor, path: string) {
     const verified = (uploadValidation.civiscopeVerifiedPhotos ??= new Map());
     const validationKey = `${process.env.NEXT_PUBLIC_SUPABASE_URL}:${path}`;
     if ((verified.get(validationKey) ?? 0) <= Date.now()) {
-      const downloaded = await createAdminClient().storage.from(EVIDENCE_BUCKET)
-        .download(path.slice(`supabase://${EVIDENCE_BUCKET}/`.length));
+      const downloaded = await createAdminClient().storage.from(bucketName)
+        .download(path.slice(`supabase://${bucketName}/`.length));
       if (downloaded.error || !downloaded.data)
         throw new ApiError(503, "The uploaded photograph could not be verified. Retry shortly.");
       validatePhotoBytes(Buffer.from(await downloaded.data.arrayBuffer()), downloaded.data.type);
@@ -125,7 +132,7 @@ export class Backend {
     if (this.actor.profile.role === "citizen")
       throw new ApiError(403, "Use My reports to view your own submissions.");
     if (this.actor.demo) {
-      const all = await IncidentService.getIncidents();
+      const all = await Promise.all((await IncidentService.getIncidents()).map(i => this.hydrate(i)));
       return this.actor.profile.role === "admin"
         ? all
         : all
@@ -177,18 +184,19 @@ export class Backend {
   async getReports() {
     const id = this.actor.profile.id;
     if (this.actor.demo) {
-      return (await IncidentService.getReports())
+      return Promise.all((await IncidentService.getReports())
         .filter((r) => r.reporter_id === id)
-        .map((r) => {
+        .map(async (r) => {
           const incident = getStore().incidents.find(
             (i) => i.id === r.incident_id,
           );
           return {
             ...r,
+            image_path: await signedPhoto(r.image_path),
             incident_status: incident?.status ?? null,
             incident_updated_at: incident?.updated_at ?? null,
           };
-        });
+        }));
     }
     const { data, error } = await this.actor
       .client!.from("reports")
@@ -592,5 +600,14 @@ export class Backend {
   }
 }
 export async function getBackend(request: Request, adminOnly = false) {
-  return new Backend(await requireActor(request, adminOnly));
+  const backend = new Backend(await requireActor(request, adminOnly));
+  if (!backend.actor.demo || !hostedDemo()) return backend;
+  return new Proxy(backend, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function"
+        ? (...args: unknown[]) => withHostedDemo(() => value.apply(target, args))
+        : value;
+    },
+  });
 }

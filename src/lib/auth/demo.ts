@@ -7,6 +7,9 @@ const state = globalThis as typeof globalThis & {
   civiscopeDemoSecret?: string;
 };
 function secret() {
+  const configured = process.env.CIVISCOPE_DEMO_SECRET;
+  if (configured && configured.length >= 32) return configured;
+  if (process.env.VERCEL) throw new Error("Hosted demo session signing is not configured.");
   return (state.civiscopeDemoSecret ??= randomBytes(32).toString("hex"));
 }
 export function demoEnabled() {

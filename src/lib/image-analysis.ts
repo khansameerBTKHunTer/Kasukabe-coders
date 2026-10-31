@@ -6,7 +6,7 @@ import {
   getVisionConfiguration,
   type AIAnalysisResult,
 } from "@/lib/ai-analyzer";
-import { validatePhoto, EVIDENCE_BUCKET } from "@/lib/backend";
+import { validatePhoto } from "@/lib/backend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readDemoUpload } from "@/lib/uploads";
 
@@ -61,15 +61,16 @@ export async function analyzeUploadedPhoto(
   recent.push(Date.now());
   s.requests.set(actor.profile.id, recent);
   const pending = (async () => {
-    const upload = actor.demo
+    const upload = actor.demo && imagePath.startsWith("/api/uploads/")
       ? await readDemoUpload(imagePath.split("/").pop()!)
       : null;
     let image: string;
     if (upload) image = `data:${upload.type};base64,${upload.base64}`;
     else {
-      const key = imagePath.slice(`supabase://${EVIDENCE_BUCKET}/`.length);
+      const { photoObject } = await import("./backend");
+      const { bucket, key } = photoObject(imagePath);
       const downloaded = await createAdminClient()
-        .storage.from(EVIDENCE_BUCKET)
+        .storage.from(bucket)
         .download(key);
       if (downloaded.error || !downloaded.data)
         return {

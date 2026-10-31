@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/auth/server";
 import { EVIDENCE_BUCKET } from "./backend";
 import { createAdminClient } from "./supabase/admin";
 import { MAX_PHOTO_BYTES, PHOTO_TYPES, validatePhotoBytes } from "./photo-validation";
+import { DEMO_BUCKET, hostedDemo } from "./hosted-demo";
 const directory = join(tmpdir(), "civiscope-demo-evidence");
 export async function readDemoUpload(
   id: string,
@@ -25,7 +26,7 @@ export async function savePhoto(actor: Actor, file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const type = validatePhotoBytes(buffer, file.type);
   const id = randomUUID();
-  if (actor.demo) {
+  if (actor.demo && !hostedDemo()) {
     await mkdir(directory, { recursive: true, mode: 0o700 });
     await writeFile(
       join(directory, id + ".json"),
@@ -43,8 +44,9 @@ export async function savePhoto(actor: Actor, file: File) {
     };
   }
   const path = `${actor.profile.id}/${id}.${type === "image/jpeg" ? "jpg" : type.split("/")[1]}`;
-  const { error } = await actor
-    .client!.storage.from(EVIDENCE_BUCKET)
+  const storage = actor.demo ? createAdminClient().storage : actor.client!.storage;
+  const bucket = actor.demo ? DEMO_BUCKET : EVIDENCE_BUCKET;
+  const { error } = await storage.from(bucket)
     .upload(path, buffer, { contentType: type, upsert: false });
   if (error)
     throw new ApiError(
@@ -52,10 +54,10 @@ export async function savePhoto(actor: Actor, file: File) {
       "Photograph upload failed. Check the evidence bucket and upload permissions, then retry.",
     );
   const signed = await createAdminClient()
-    .storage.from(EVIDENCE_BUCKET)
+    .storage.from(bucket)
     .createSignedUrl(path, 900);
   return {
-    imagePath: `supabase://${EVIDENCE_BUCKET}/${path}`,
+    imagePath: `supabase://${bucket}/${path}`,
     previewUrl: signed.data?.signedUrl ?? "",
     storage: "supabase",
   };
@@ -64,11 +66,12 @@ export async function savePhoto(actor: Actor, file: File) {
 export async function preparePhotoUpload(actor: Actor, contentType: string, size: number) {
   if (!PHOTO_TYPES.includes(contentType as typeof PHOTO_TYPES[number]) || !Number.isInteger(size) || size <= 0 || size > MAX_PHOTO_BYTES)
     throw new ApiError(400, "Choose a JPEG, PNG, or WebP photograph up to 8 MB.");
-  if (actor.demo) return { uploadMode: "multipart" as const };
+  if (actor.demo && !hostedDemo()) return { uploadMode: "multipart" as const };
+  const bucket = actor.demo ? DEMO_BUCKET : EVIDENCE_BUCKET;
   const path = `${actor.profile.id}/${randomUUID()}.${contentType === "image/jpeg" ? "jpg" : contentType.split("/")[1]}`;
-  const { data, error } = await createAdminClient().storage.from(EVIDENCE_BUCKET)
+  const { data, error } = await createAdminClient().storage.from(bucket)
     .createSignedUploadUrl(path, { upsert: false });
   if (error || !data)
     throw new ApiError(503, "Unable to prepare the photograph upload. Check the evidence bucket and retry.");
-  return { uploadMode: "direct" as const, uploadUrl: data.signedUrl, imagePath: `supabase://${EVIDENCE_BUCKET}/${path}` };
+  return { uploadMode: "direct" as const, uploadUrl: data.signedUrl, imagePath: `supabase://${bucket}/${path}` };
 }

@@ -91,6 +91,23 @@ async function main() {
   const { POST: reverse } = await import("../src/app/api/geocode/route");
   const { POST: search } = await import("../src/app/api/geocode/search/route");
   const originalFetch = globalThis.fetch;
+  const previousVercel = process.env.VERCEL;
+  const previousGeocoding = process.env.GEOCODING_BASE_URL;
+  try {
+    process.env.VERCEL = "1";
+    delete process.env.GEOCODING_BASE_URL;
+    const disabled = await search(new NextRequest("http://localhost/api/geocode/search", {
+      method: "POST", headers: { cookie: `civiscope_demo=${createDemoToken(SEED_PROFILES[3].id)}`, "Content-Type": "application/json" }, body: JSON.stringify({ query: "Hosted missing provider" }),
+    }));
+    assert.equal(disabled.status, 503, "Vercel must not silently fall back to the demo-only public geocoder");
+    assert.match(await disabled.text(), /drop a pin/);
+    assertions += 2;
+  } finally {
+    if (previousVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previousVercel;
+    if (previousGeocoding === undefined) delete process.env.GEOCODING_BASE_URL;
+    else process.env.GEOCODING_BASE_URL = previousGeocoding;
+  }
   let upstreamFailure = false;
   globalThis.fetch = async input => {
     if (upstreamFailure) return new Response("private upstream error", { status: 503 });

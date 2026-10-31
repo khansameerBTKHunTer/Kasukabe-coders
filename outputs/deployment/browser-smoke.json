@@ -1,0 +1,19 @@
+{
+  "results": [
+    {
+      "width": 1440,
+      "fits": true,
+      "passwordField": true,
+      "backgroundLoaded": true,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "fits": true,
+      "passwordField": true,
+      "backgroundLoaded": true,
+      "passed": true
+    }
+  ],
+  "runtimeErrors": []
+}

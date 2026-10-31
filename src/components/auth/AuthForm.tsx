@@ -21,6 +21,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
   const router = useRouter();
   const auth = useAuth();
   const client = auth.supabase;
+  const demoLogin = mode === "demo" || (mode === "login" && auth.demoEnabled);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -84,7 +85,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
     setError("");
     setMessage("");
     try {
-      if (mode === "demo") {
+      if (demoLogin) {
         const res = await fetch("/api/demo/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -385,9 +386,9 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                     id="password"
                     type={show ? "text" : "password"}
                     required
-                    minLength={mode === "demo" ? 4 : ["register", "reset"].includes(mode) ? 6 : undefined}
-                    inputMode={mode === "demo" ? "numeric" : undefined}
-                    pattern={mode === "demo" ? "[0-9]{4}" : undefined}
+                    minLength={demoLogin ? 4 : ["register", "reset"].includes(mode) ? 6 : undefined}
+                    inputMode={demoLogin ? "numeric" : undefined}
+                    pattern={demoLogin ? "[0-9]{4}" : undefined}
                     autoComplete={
                       ["register", "reset"].includes(mode)
                         ? "new-password"
@@ -489,14 +490,22 @@ export function AuthForm({ mode }: { mode: FormMode }) {
             Use a fictional demo account
           </Link>
         )}
-        {mode === "demo" && (
+        {demoLogin && (
           <div className="mt-5 break-words rounded-xl border border-amber-200 p-3 text-xs text-slate-700">
             <p className="font-semibold text-amber-700">
-              Local demo credentials
+              Demo accounts · shared fictional data
             </p>
             <p className="mt-1">
               Shared password: <code>1234</code>
             </p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[["Citizen", "citizen"], ["Admin", "admin"], ["Fire", "fire"]].map(([label, account]) => (
+                <button key={account} type="button" className="rounded-lg border border-amber-200 px-2 py-2 font-semibold hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                  onClick={() => { setEmail(`${account}@civiscope.demo`); setPassword("1234"); setError(""); }}>
+                  Fill {label}
+                </button>
+              ))}
+            </div>
             <p className="mt-2">
               citizen@civiscope.demo · fire@civiscope.demo ·
               power@civiscope.demo · municipal@civiscope.demo ·

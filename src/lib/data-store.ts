@@ -470,13 +470,17 @@ export function getInitialSeedData() {
 }
 
 // In-Memory Global State (shared across serverless requests in same process)
-type MemoryStore = {
+export type MemoryStore = {
   incidents: Incident[];
   reports: Report[];
   assignments: Assignment[];
   activityLogs: ActivityLog[];
 };
 const processState = globalThis as typeof globalThis & { civiscopeMemoryStore?: MemoryStore };
+
+export function replaceDemoStore(store: MemoryStore) {
+  processState.civiscopeMemoryStore = store;
+}
 
 export function getStore() {
   if (!processState.civiscopeMemoryStore) {

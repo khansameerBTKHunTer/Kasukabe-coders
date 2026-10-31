@@ -1,0 +1,224 @@
+{
+  "origin": "https://civiscope-damage-mapper.vercel.app",
+  "scope": "Public and anonymous HTTP smoke checks only; no users or reports created.",
+  "results": [
+    {
+      "method": "GET",
+      "path": "/api/ai/analyze",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/analyze",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/assignments/missing-record/evidence",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/assignments/missing-record",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/profile",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/demo/session",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/demo/session",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/demo/session",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "departmentCount": 11
+    },
+    {
+      "method": "POST",
+      "path": "/api/geocode",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/geocode/search",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/incidents/missing-record/assign",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/incidents/missing-record",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/incidents/missing-record",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/incidents/missing-record/routing",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/incidents/duplicate",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/incidents",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/incidents",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/sitrep",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/seed/reset",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/statistics",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/uploads/missing-record",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/uploads/complete",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/uploads",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/register",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/forgot-password",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/images/civiscope-rescue-atlas.webp",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/incidents",
+      "status": 405,
+      "expected": 405,
+      "passed": true
+    }
+  ]
+}
