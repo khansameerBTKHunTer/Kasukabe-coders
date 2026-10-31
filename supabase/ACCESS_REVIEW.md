@@ -1,5 +1,5 @@
 # Auth identity and access review
-
+final commit
 The final application integration is documented in [the integration handoff](../docs/INTEGRATION_HANDOFF.md). The historical `20261031_roles_and_access.sql` migration introduced approval-based access. Apply `20261101_portal_integration.sql` afterward for the current requirements: immediate self-declared citizen/rescue registration, protected server mutations, extended assignment states, and private evidence storage. Public registration never creates admins. These local migrations have not been applied remotely by the agent.
 
 ## Existing identities
