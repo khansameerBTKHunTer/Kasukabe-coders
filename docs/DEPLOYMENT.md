@@ -16,9 +16,9 @@ Use Node.js 22 or a newer supported LTS release. On Vercel import the repository
 
 Vercel builds use the standard `.next` directory. Local production builds continue
 to use `.next-production` to remain separate from the local development server.
-On Vercel, address lookups require an explicit `GEOCODING_BASE_URL`; when it is
-unset, the UI keeps GPS/manual pin selection available and explains that address
-lookup is unconfigured instead of falling back to the public demo provider.
+For Vercel address lookup, configure Geoapify or a Nominatim-compatible provider
+with a shared rate limit/cache. Without a provider, the UI keeps GPS/manual pin
+selection available and explains that address lookup is unconfigured.
 
 Set these variables in the hosting project's environment **before building**:
 
@@ -32,10 +32,12 @@ Set these variables in the hosting project's environment **before building**:
 | `AI_PROVIDER` | `gemini` or `openrouter` |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | Native Google AI Studio key and available vision model, if using Gemini |
 | `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | Optional alternative provider configuration |
-| `GEOCODING_BASE_URL` | Nominatim-compatible production provider or a proxy with a shared rate limit/cache |
-| `GEOCODING_USER_AGENT` | App identification and contact URL |
+| `GEOCODING_PROVIDER` | `geoapify` for the managed Geoapify API, or `nominatim` for a compatible endpoint |
+| `GEOCODING_API_KEY` | Server-only Geoapify key; never use a `NEXT_PUBLIC_*` name |
+| `GEOCODING_BASE_URL` | Nominatim-compatible endpoint or shared-rate-limit proxy; required with `GEOCODING_PROVIDER=nominatim` |
+| `GEOCODING_USER_AGENT` | App identification and contact URL when using Nominatim |
 
-The public Nominatim default is for the accepted small demo. Its application-wide one-request-per-second rule cannot be enforced by a process-local queue across serverless instances. Configure a suitable provider/proxy for production. The existing map continues to use standard OpenStreetMap tiles with attribution. See [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) and your map/provider usage limits.
+The public Nominatim default is for the accepted small demo. Its application-wide one-request-per-second rule cannot be enforced by a process-local queue across serverless instances. Use Geoapify or a suitable provider/proxy for production. The existing map continues to use standard OpenStreetMap tiles with attribution. See [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) and your map/provider usage limits.
 
 Changing `NEXT_PUBLIC_*` values requires a new build. Keep `.env.local` out of Git. Do not paste credentials into issue descriptions, screenshots or logs.
 

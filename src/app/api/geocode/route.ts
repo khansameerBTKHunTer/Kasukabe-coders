@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireActor, apiError } from "@/lib/auth/server";
-import { reverseGeocode } from "@/lib/geocoding";
+import { geocodingAttribution, reverseGeocode } from "@/lib/geocoding";
 export async function POST(request: NextRequest) {
   try {
     await requireActor(request);
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       );
     return NextResponse.json({
       address: await reverseGeocode(parsed.data.lat, parsed.data.lng),
-      attribution: "© OpenStreetMap contributors",
+      attribution: geocodingAttribution(),
       approximate: true,
     });
   } catch (error) {

@@ -27,16 +27,23 @@ for (const name of ['NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY']
 if (env.NEXT_PUBLIC_SUPABASE_ANON_KEY === env.SUPABASE_SERVICE_ROLE_KEY && env.SUPABASE_SERVICE_ROLE_KEY)
   errors.push('The public Supabase key and service role key must be different.');
 for (const name of Object.keys(env))
-  if (name.startsWith('NEXT_PUBLIC_') && /(?:SERVICE_ROLE|GEMINI_API_KEY|OPENROUTER_API_KEY|DB_PASSWORD)/.test(name))
+  if (name.startsWith('NEXT_PUBLIC_') && /(?:SERVICE_ROLE|GEMINI_API_KEY|OPENROUTER_API_KEY|GEOCODING_API_KEY|DB_PASSWORD)/.test(name))
     errors.push(`${name} would expose a server credential to browsers. Remove the public prefix.`);
 if (env.AI_PROVIDER && !['gemini','openrouter'].includes(env.AI_PROVIDER)) errors.push('AI_PROVIDER must be gemini or openrouter.');
 const provider = env.AI_PROVIDER || (env.GEMINI_API_KEY ? 'gemini' : 'openrouter');
 if (!(provider === 'gemini' ? env.GEMINI_API_KEY : env.OPENROUTER_API_KEY)?.trim())
   warnings.push('Vision is not configured. Clear typed hazards can still route; no visual assessment will be generated.');
-const geocoding = validUrl('GEOCODING_BASE_URL');
-if (geocoding?.hostname === 'nominatim.openstreetmap.org')
-  errors.push('Public Nominatim uses a process-local limiter here. For a serverless/multi-instance production deployment set GEOCODING_BASE_URL to a compatible provider or a proxy with a shared application-wide limiter/cache.');
-if (!env.GEOCODING_USER_AGENT?.trim()) warnings.push('Set GEOCODING_USER_AGENT to identify the app and a contact URL.');
+const geocodingProvider = env.GEOCODING_PROVIDER?.trim().toLowerCase() || 'nominatim';
+if (!['nominatim','geoapify'].includes(geocodingProvider))
+  errors.push('GEOCODING_PROVIDER must be nominatim or geoapify.');
+if (geocodingProvider === 'geoapify') {
+  if (!env.GEOCODING_API_KEY?.trim()) errors.push('GEOCODING_API_KEY is required when GEOCODING_PROVIDER=geoapify.');
+} else {
+  const geocoding = validUrl('GEOCODING_BASE_URL');
+  if (geocoding?.hostname === 'nominatim.openstreetmap.org')
+    errors.push('Public Nominatim uses a process-local limiter here. For a serverless/multi-instance production deployment set GEOCODING_BASE_URL to a compatible provider or a proxy with a shared application-wide limiter/cache.');
+  if (!env.GEOCODING_USER_AGENT?.trim()) warnings.push('Set GEOCODING_USER_AGENT to identify the app and a contact URL.');
+}
 if (remote && database && env.SUPABASE_SERVICE_ROLE_KEY) {
   const client = createClient(database.href, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },

@@ -39,11 +39,13 @@ The local output files `outputs/vercel-smoke-results.json` and
    `https://civiscope-damage-mapper.vercel.app`. Allow
    `https://civiscope-damage-mapper.vercel.app/auth/callback` and the recovery
    variant ending `/auth/callback?flow=recovery` in Auth URL Configuration.
-3. **Production geocoding:** supply a Nominatim-compatible production endpoint
-   or shared-rate-limit proxy as `GEOCODING_BASE_URL`, and an identifying
-   `GEOCODING_USER_AGENT`. Redeploy after changing settings. Until then, address
-   lookup reports that it is unconfigured; GPS/manual pin selection remains
-   available. Public Nominatim is not silently used on Vercel.
+3. **Production geocoding:** configure `GEOCODING_PROVIDER=geoapify` and the
+   server-only `GEOCODING_API_KEY` in Vercel Project Settings > Environment
+   Variables, or use a Nominatim-compatible provider/proxy with shared rate
+   limiting via `GEOCODING_BASE_URL` and `GEOCODING_USER_AGENT`. Redeploy after
+   changing settings. Until then, address lookup reports that it is
+   unconfigured; GPS/manual pin selection remains available. Public Nominatim
+   is not silently used on Vercel.
 4. Run the authenticated hosted acceptance workflow in
    [DEPLOYMENT.md](DEPLOYMENT.md): citizen report, correct department receipt,
    unrelated-department isolation, field evidence, completion and admin review.

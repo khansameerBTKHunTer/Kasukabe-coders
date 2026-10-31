@@ -6,7 +6,7 @@ import { POST as submit } from "../src/app/api/incidents/route";
 import { createDemoToken } from "../src/lib/auth/demo";
 import { SEED_PROFILES, resetStore } from "../src/lib/data-store";
 import { savePhoto } from "../src/lib/uploads";
-import { reverseGeocode, searchAddress } from "../src/lib/geocoding";
+import { geocodingAttribution, reverseGeocode, searchAddress } from "../src/lib/geocoding";
 import { POST as findAddress } from "../src/app/api/geocode/search/route";
 const fixture = {
   category: "building_damage",
@@ -31,6 +31,8 @@ async function main() {
   process.env.OPENROUTER_API_KEY = "test-only-key";
   process.env.OPENROUTER_MODEL = "google/gemini-2.5-flash";
   const original = globalThis.fetch;
+  const previousGeocodingProvider = process.env.GEOCODING_PROVIDER;
+  const previousGeocodingApiKey = process.env.GEOCODING_API_KEY;
   let calls = 0;
   let mode = "success";
   globalThis.fetch = async (input, init) => {
@@ -234,11 +236,46 @@ async function main() {
     assert.ok(!(await unavailable.text()).includes("private provider diagnostic"));
     globalThis.fetch = async () => Response.json([]);
     assert.deepEqual(await searchAddress("No known address"), [], "No matches should allow manual pin selection");
+    process.env.GEOCODING_PROVIDER = "geoapify";
+    process.env.GEOCODING_API_KEY = "test-geoapify-key";
+    assert.equal(geocodingAttribution(), "© Geoapify | © OpenStreetMap contributors");
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      assert.equal(url.origin, "https://api.geoapify.com");
+      assert.equal(url.searchParams.get("format"), "json");
+      assert.equal(url.searchParams.get("apiKey"), "test-geoapify-key");
+      if (url.pathname.endsWith("/search")) {
+        assert.equal(url.searchParams.get("text"), "harohalli, karnataka");
+        assert.equal(url.searchParams.get("limit"), "5");
+        return Response.json({
+          results: [{ formatted: "Harohalli, Karnataka, India", lat: 12.8, lon: 77.5 }],
+        });
+      }
+      assert.equal(url.pathname.endsWith("/reverse"), true);
+      assert.equal(url.searchParams.get("lat"), "12.80000");
+      assert.equal(url.searchParams.get("lon"), "77.50000");
+      return Response.json({
+        results: [{ formatted: "Harohalli, Karnataka, India", lat: 12.8, lon: 77.5 }],
+      });
+    };
+    assert.deepEqual(await searchAddress("Harohalli, Karnataka"), [
+      { address: "Harohalli, Karnataka, India", lat: 12.8, lng: 77.5 },
+    ]);
+    const geoapifyResponse = await findAddress(
+      request("/api/geocode/search", { query: "Harohalli, Karnataka" }),
+    );
+    assert.equal(geoapifyResponse.status, 200);
+    assert.equal((await geoapifyResponse.json()).attribution, "© Geoapify | © OpenStreetMap contributors");
+    assert.equal(await reverseGeocode(12.8, 77.5), "Harohalli, Karnataka, India");
     console.log(
-      "Vision and address tests passed: Gemini and OpenRouter image input, editable suggestions, cached submit, search authorization and validation, safe coordinates, shared lookup cache and request spacing. External requests were mocked.",
+      "Vision and address tests passed: Gemini and OpenRouter image input, editable suggestions, cached submit, search authorization and validation, safe coordinates, shared lookup cache and request spacing, and Geoapify search/reverse mapping. External requests were mocked.",
     );
   } finally {
     globalThis.fetch = original;
+    if (previousGeocodingProvider === undefined) delete process.env.GEOCODING_PROVIDER;
+    else process.env.GEOCODING_PROVIDER = previousGeocodingProvider;
+    if (previousGeocodingApiKey === undefined) delete process.env.GEOCODING_API_KEY;
+    else process.env.GEOCODING_API_KEY = previousGeocodingApiKey;
     resetStore();
   }
 }

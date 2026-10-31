@@ -9,6 +9,42 @@ const globals = globalThis as typeof globalThis & {
     waiting: number;
   };
 };
+
+type GeocodingProvider = "nominatim" | "geoapify";
+
+function getProvider(): GeocodingProvider {
+  const provider = process.env.GEOCODING_PROVIDER?.trim().toLowerCase();
+  if (!provider || provider === "nominatim") return "nominatim";
+  if (provider === "geoapify") return "geoapify";
+  throw new ApiError(503, "Address lookup provider is not configured correctly.");
+}
+
+export function geocodingAttribution(): string {
+  return getProvider() === "geoapify"
+    ? "© Geoapify | © OpenStreetMap contributors"
+    : "© OpenStreetMap contributors";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function normalizeGeoapifyResponse(data: unknown, path: string): unknown {
+  const results = asRecord(data)?.results;
+  if (!Array.isArray(results)) return null;
+  const normalized = results.map((entry) => {
+    const result = asRecord(entry);
+    return {
+      display_name: result?.formatted,
+      lat: result?.lat,
+      lon: result?.lon,
+    };
+  });
+  return path === "search" ? normalized : normalized[0] ?? {};
+}
+
 // Both lookup directions share this queue: public Nominatim allows at most
 // one request per second for the entire app (single-server demo deployment).
 async function lookup<T>(
@@ -16,7 +52,11 @@ async function lookup<T>(
   params: Record<string, string>,
   parse: (data: unknown) => T,
 ): Promise<T> {
-  if (process.env.VERCEL && !process.env.GEOCODING_BASE_URL?.trim())
+  const provider = getProvider();
+  const apiKey = process.env.GEOCODING_API_KEY?.trim();
+  if (provider === "geoapify" && !apiKey)
+    throw new ApiError(503, "Address lookup is not configured on this deployment. Set the server-side Geoapify API key.");
+  if (provider === "nominatim" && process.env.VERCEL && !process.env.GEOCODING_BASE_URL?.trim())
     throw new ApiError(503, "Address lookup is not configured on this deployment. Use device location or drop a pin on the map; your selected location is kept.");
   const state = (globals.civiscopeAddressLookups ??= {
     cache: new Map(),
@@ -24,9 +64,18 @@ async function lookup<T>(
     next: 0,
     waiting: 0,
   });
-  const base = process.env.GEOCODING_BASE_URL || "https://nominatim.openstreetmap.org";
-  const url = new URL(path, base.replace(/\/?$/, "/"));
-  url.search = new URLSearchParams({ format: "jsonv2", ...params }).toString();
+  const url = provider === "geoapify"
+    ? new URL(`/v1/geocode/${path}`, "https://api.geoapify.com")
+    : new URL(
+      path,
+      (process.env.GEOCODING_BASE_URL || "https://nominatim.openstreetmap.org").replace(/\/?$/, "/"),
+    );
+  const query: Record<string, string> = provider === "geoapify"
+    ? path === "search"
+      ? { format: "json", text: params.q, limit: params.limit, apiKey: apiKey ?? "" }
+      : { format: "json", lat: params.lat, lon: params.lon, apiKey: apiKey ?? "" }
+    : { format: "jsonv2", ...params };
+  url.search = new URLSearchParams(query).toString();
   const key = url.href;
   const cached = state.cache.get(key);
   if (cached && cached.expires > Date.now()) return cached.value as T;
@@ -51,16 +100,19 @@ async function lookup<T>(
     state.next = Date.now() + 1100;
     const response = await fetch(url, {
       headers: {
-        "User-Agent":
-          process.env.GEOCODING_USER_AGENT ||
-          "CIVISCOPE-DamageMapper/1.0 (small civic-response demonstration)",
+        ...(provider === "nominatim" ? {
+          "User-Agent":
+            process.env.GEOCODING_USER_AGENT ||
+            "CIVISCOPE-DamageMapper/1.0 (small civic-response demonstration)",
+        } : {}),
         "Accept-Language": "en",
       },
       signal: AbortSignal.timeout(7000),
       cache: "no-store",
     });
     if (!response.ok) throw new Error("Geocoding service unavailable");
-    const value = parse(await response.json());
+    const data: unknown = await response.json();
+    const value = parse(provider === "geoapify" ? normalizeGeoapifyResponse(data, path) : data);
     if (state.cache.size >= 256)
       state.cache.delete(state.cache.keys().next().value!);
     state.cache.set(key, { value, expires: Date.now() + 24 * 3600_000 });

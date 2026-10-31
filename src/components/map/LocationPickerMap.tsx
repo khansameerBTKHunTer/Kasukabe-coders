@@ -63,6 +63,7 @@ export function LocationPickerMap({
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<AddressMatch[]>([]);
   const [searchMessage, setSearchMessage] = useState("");
+  const [addressAttribution, setAddressAttribution] = useState("");
   const searchRequest = useRef<AbortController | null>(null);
   const reverseRequest = useRef<AbortController | null>(null);
   const matchedAddress = useRef<AddressMatch | null>(null);
@@ -128,6 +129,7 @@ export function LocationPickerMap({
       } else {
         setSearchResults([]);
         setSearchMessage("");
+        setAddressAttribution("");
       }
       selected.current = { lat: a, lng: b };
       callbacks.current.onLocationChange(a, b);
@@ -154,6 +156,7 @@ export function LocationPickerMap({
     searchRequest.current = controller;
     setSearching(true);
     setSearchMessage("");
+    setAddressAttribution("");
     try {
       const response = await fetch("/api/geocode/search", {
         method: "POST",
@@ -165,6 +168,7 @@ export function LocationPickerMap({
       if (!response.ok || !Array.isArray(data.results))
         throw new Error(data.error || "Address search is unavailable. Retry or drop a pin on the map.");
       if (controller.signal.aborted) return;
+      setAddressAttribution(typeof data.attribution === "string" ? data.attribution : "");
       const results: AddressMatch[] = data.results;
       setSearchResults(results);
       if (results.length) {
@@ -393,6 +397,7 @@ export function LocationPickerMap({
       setAddress("");
       setAddressLoading(false);
       setAddressError("");
+      setAddressAttribution("");
       callbacks.current.onAddressChange?.("");
       return;
     }
@@ -425,6 +430,7 @@ export function LocationPickerMap({
             );
           if (!controller.signal.aborted) {
             setAddress(data.address);
+            setAddressAttribution(typeof data.attribution === "string" ? data.attribution : "");
             callbacks.current.onAddressChange?.(data.address);
           }
         })
@@ -477,6 +483,7 @@ export function LocationPickerMap({
               setAddressQuery(event.target.value);
               setSearchResults([]);
               setSearchMessage("");
+              setAddressAttribution("");
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -498,6 +505,9 @@ export function LocationPickerMap({
         <p id="incident-address-search-status" role="status" className="mt-2 text-xs leading-relaxed text-slate-500">
           {searching ? "Finding matching addresses…" : searchMessage}
         </p>
+        {addressAttribution && (
+          <p className="mt-1 text-[10px] text-slate-500">{addressAttribution}</p>
+        )}
         {searchResults.length > 1 && (
           <ul aria-label="Matching addresses" className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-1">
             {searchResults.map((match, index) => (
@@ -620,7 +630,7 @@ export function LocationPickerMap({
         rel="noreferrer"
         className="mt-3 block text-[10px] text-slate-400"
       >
-        Address and map data © OpenStreetMap contributors
+        Map data © OpenStreetMap contributors
       </a>
     </section>
   );

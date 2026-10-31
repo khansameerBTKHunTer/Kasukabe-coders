@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireActor, apiError } from "@/lib/auth/server";
-import { searchAddress } from "@/lib/geocoding";
+import { geocodingAttribution, searchAddress } from "@/lib/geocoding";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     return NextResponse.json({
       results: await searchAddress(parsed.data.query),
-      attribution: "© OpenStreetMap contributors",
+      attribution: geocodingAttribution(),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error);
