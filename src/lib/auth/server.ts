@@ -21,7 +21,14 @@ export interface Actor {
 }
 export function assertSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin)
+  const configured = process.env.NEXT_PUBLIC_APP_URL;
+  const allowed = new Set([new URL(request.url).origin]);
+  // Reverse proxies may give Next an internal request URL. The configured
+  // public origin is trusted; arbitrary forwarded Host headers are not.
+  if (configured) {
+    try { allowed.add(new URL(configured).origin); } catch { /* preflight reports invalid config */ }
+  }
+  if ((origin && !allowed.has(origin)) || (!origin && request.headers.get("sec-fetch-site") === "cross-site"))
     throw new ApiError(403, "Request origin is not permitted.");
 }
 export async function requireActor(
@@ -90,6 +97,9 @@ export async function requireActor(
   return { profile, demo: demoEnabled(), client };
 }
 export function apiError(error: unknown) {
+  if (error instanceof SyntaxError)
+    return NextResponse.json({ success: false, error: "Request body must be valid JSON." },
+      { status: 400, headers: { "Cache-Control": "no-store" } });
   if (error instanceof ApiError)
     return NextResponse.json(
       { success: false, error: error.message, code: error.code },
@@ -104,6 +114,6 @@ export function apiError(error: unknown) {
       success: false,
       error: "The operation could not be completed. Please retry.",
     },
-    { status: 500 },
+    { status: 500, headers: { "Cache-Control": "no-store" } },
   );
 }

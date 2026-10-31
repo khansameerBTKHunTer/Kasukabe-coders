@@ -9,6 +9,7 @@ import { PATCH as updateAssignment } from "../src/app/api/assignments/[id]/route
 import { POST as upload } from "../src/app/api/uploads/route";
 import { POST as reset } from "../src/app/api/seed/reset/route";
 import { POST as demoLogin } from "../src/app/api/demo/session/route";
+import { assertSameOrigin, ApiError } from "../src/lib/auth/server";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=",
   "base64",
@@ -41,7 +42,7 @@ async function main() {
   );
   const badOrigin = request("/api/demo/session", undefined, "POST", {
     email: SEED_PROFILES[0].email,
-    password: "CiviscopeDemo!2026",
+    password: "1234",
   });
   badOrigin.headers.set("origin", "https://attacker.invalid");
   assert.equal((await demoLogin(badOrigin)).status, 403);
@@ -50,6 +51,23 @@ async function main() {
     password: "incorrect",
   });
   assert.equal((await demoLogin(invalidLogin)).status, 401);
+  const malformedJson = new NextRequest("http://localhost/api/incidents", {
+    method: "POST", headers: { cookie: `civiscope_demo=${createDemoToken(SEED_PROFILES[3].id)}`, "Content-Type": "application/json" }, body: "{not-json",
+  });
+  assert.equal((await submit(malformedJson)).status, 400, "Invalid JSON must be a client error");
+  const publicUrl = process.env.NEXT_PUBLIC_APP_URL;
+  process.env.NEXT_PUBLIC_APP_URL = "https://civiscope.example";
+  try {
+    assert.doesNotThrow(() => assertSameOrigin(new Request("http://internal:3000/api/incidents", {
+      method: "POST", headers: { origin: "https://civiscope.example" },
+    })));
+    assert.throws(() => assertSameOrigin(new Request("http://internal:3000/api/incidents", {
+      method: "POST", headers: { "sec-fetch-site": "cross-site" },
+    })), ApiError);
+  } finally {
+    if (publicUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = publicUrl;
+  }
   const form = new FormData();
   form.append("file", new File([png], "incident.png", { type: "image/png" }));
   const uploadRequest = new NextRequest("http://localhost/api/uploads", {

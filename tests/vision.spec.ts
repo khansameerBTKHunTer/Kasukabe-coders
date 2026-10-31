@@ -35,7 +35,7 @@ const result = {
 };
 test.beforeEach(async ({ page }) => {
   await page.request.post("/api/demo/session", {
-    data: { email: "citizen@civiscope.demo", password: "CiviscopeDemo!2026" },
+    data: { email: "citizen@civiscope.demo", password: "1234" },
   });
   await page.route("**/api/ai/analyze", (route) =>
     route.fulfill({

@@ -18,7 +18,7 @@ npm install
 npm run dev:demo
 ```
 
-Open the actual Local URL printed in the terminal, then `/demo-login`. All fictional accounts use `CiviscopeDemo!2026`:
+Open the actual Local URL printed in the terminal, then `/demo-login`. All fictional accounts use the same four-digit password `1234`:
 
 | Portal | Email |
 | --- | --- |
@@ -36,6 +36,8 @@ Open the actual Local URL printed in the terminal, then `/demo-login`. All ficti
 
 For real accounts, stop the server, configure `.env.local`, leave `CIVISCOPE_DEMO_MODE=false`, and run `npm run dev`. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. Keep the service key out of all `NEXT_PUBLIC_*` variables. Vision configuration is optional: without it reports are saved for human triage and no AI assessment is invented. Google AI Studio uses `AI_PROVIDER=gemini`, `GEMINI_API_KEY`, and `GEMINI_MODEL=gemini-3.5-flash-lite`. OpenRouter remains an alternative with its own provider/key settings.
 
+The four-digit password is deliberately limited to the isolated fictional demo. Supabase Auth enforces a minimum of 6 characters for hosted real accounts, so registration and password reset use 6 as the client minimum and still honor any stronger rule configured in the Supabase dashboard.
+
 Production commands are `npm run build` and `npm start`. Demo mode is opt-in even with a production build. Do not expose the fictional demo as a real disaster-reporting service.
 
 ## Remote setup still required — backend/project owner
@@ -45,6 +47,9 @@ Production commands are `npm run build` and `npm start`. Demo mode is opt-in eve
    - `supabase/migrations/20261031_roles_and_access.sql`
    - `supabase/migrations/20261101_portal_integration.sql`
    - `supabase/migrations/20261102_india_relief_routing.sql`
+   - `supabase/migrations/20261103_urgent_professional_auto_routing.sql`
+   - `supabase/migrations/20261104_department_report_delivery.sql`
+   - `supabase/migrations/20261105_deployment_readiness.sql`
 2. Do not rerun already applied migrations. The legacy `seed.sql` is incompatible with real Auth identities and is deliberately blocked after hardening. Demo mode seeds its own isolated memory repository and does not need SQL seed data.
 3. Resolve legacy profile IDs/email conflicts using the instructions in `supabase/ACCESS_REVIEW.md`. Confirm that profile IDs match actual Auth user IDs, then validate `profiles_auth_user_fkey` before real deployment. Existing staff created under the older approval-based migration remain unchanged; only new registrations use the immediate citizen/rescue provisioning below.
 4. The final migration replaces the signup trigger with validated citizen/rescue provisioning, adds `organization_name`, extends assignment statuses, creates atomic server-only mutation RPCs, and provisions a private `incident-evidence` Storage bucket. It also removes direct client operational writes, including column-level report insert grants. Do not apply only the first migration and treat its original permissive policies as production-ready.
@@ -93,7 +98,14 @@ node --import tsx scripts/verify-workflows-inproc.ts
 npm run build
 ```
 
-Browser tests require a separate local server in isolated demo mode. Against its printed port:
+The browser suite can manage an isolated demo server automatically after building:
+
+```bash
+npm run build
+npm run test:browser:local
+```
+
+To use a separate local demo instance instead:
 
 ```bash
 AI_PROVIDER=gemini GEMINI_API_KEY= OPENROUTER_API_KEY= CIVISCOPE_DEMO_MODE=true npm start -- -p 3099

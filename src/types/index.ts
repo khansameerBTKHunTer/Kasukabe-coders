@@ -159,7 +159,7 @@ export interface RoutingDecision {
   suggested_codes: string[];
   assigned_codes: string[];
   reasons: string[];
-  policy_version: "india-relief-v1";
+  policy_version: "india-relief-v1" | "india-relief-v2" | "india-relief-v3";
 }
 
 export interface ActivityLog {

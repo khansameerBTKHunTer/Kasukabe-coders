@@ -5,32 +5,70 @@ import { profileAccessError } from "../src/lib/auth/roles";
 import { Backend } from "../src/lib/backend";
 import { getStore, IncidentService, resetStore, SEED_PROFILES } from "../src/lib/data-store";
 import type { AIAssessment } from "../src/types";
+import { reportCategory } from "../src/lib/department-router";
 
 const assessment: AIAssessment = { category: "flood", title: "Minor drainage obstruction", severity: "low", confidence: 0.94, visible_damage: ["Blocked roadside drain"], secondary_hazards: [], life_risk_indicators: [], critical_infrastructure_indicators: [], uncertainties: [], human_review_required: false, summary: "Shallow water near a blocked drain. No people are visible.", recommended_departments: ["MUNICIPAL", "NGO_RELIEF", "COMMUNITY_VOLUNTEERS"] };
 const input: RoutingInput = { aiAssessment: assessment, description: "Shallow water near a blocked drain", assistanceNeeded: "Pumping and food at a safe relief shelter", immediateDanger: "no", sourceType: "on_site", priorityBand: "Low", hasDuplicateCandidates: false, departments: SEED_DEPARTMENT_CATALOG };
 assert.deepEqual(planResponse(input).assigned_codes.sort(), ["MUNICIPAL", "NGO_RELIEF", "COMMUNITY_VOLUNTEERS"].sort());
 for (const patch of [
   { aiAssessment: null }, { aiAssessment: { ...assessment, confidence: 0.79 } },
-  { aiAssessment: { ...assessment, human_review_required: true } },
-  { aiAssessment: { ...assessment, severity: "high" as const } },
-  { aiAssessment: { ...assessment, life_risk_indicators: ["Person in water"] } },
   { aiAssessment: { ...assessment, recommended_departments: ["NDRF"] } },
   { aiAssessment: { ...assessment, recommended_departments: ["an invented team"] } },
   { aiAssessment: { ...assessment, category: "other" as const } },
-  { immediateDanger: "yes" as const }, { immediateDanger: "unknown" as const },
-  { sourceType: "news_public" as const }, { priorityBand: "Critical" as const },
+  { sourceType: "news_public" as const },
   { hasDuplicateCandidates: true }, { departments: [] },
 ]) {
   const decision = planResponse({ ...input, ...patch });
   assert.equal(decision.mode, "needs_review", JSON.stringify(patch));
-  assert.deepEqual(decision.assigned_codes, []);
+  if (patch.sourceType === "news_public" || patch.hasDuplicateCandidates || patch.departments) {
+    assert.deepEqual(decision.assigned_codes, []);
+  } else {
+    assert.ok(decision.assigned_codes.includes("MUNICIPAL"), "Clear municipal hazards still reach their professional department during review");
+    assert.ok(!decision.assigned_codes.includes("NDRF"));
+    assert.ok(!decision.assigned_codes.includes("COMMUNITY_VOLUNTEERS"));
+  }
 }
 const hazardous = planResponse({ ...input, aiAssessment: { ...assessment, category: "electrical_hazard" }, description: "Downed wire across a path" });
 assert.equal(hazardous.mode, "needs_review");
 assert.ok(hazardous.suggested_codes.includes("ELECTRICITY"));
 assert.ok(!hazardous.suggested_codes.includes("COMMUNITY_VOLUNTEERS"));
-const professional = planResponse({ ...input, aiAssessment: { ...assessment, category: "fire", recommended_departments: ["Fire & Rescue", "Electricity Department", "MEDICAL"] }, assistanceNeeded: "Qualified fire services only" });
+const professional = planResponse({ ...input, aiAssessment: { ...assessment, category: "fire", recommended_departments: ["Fire & Rescue", "Electricity Department", "MEDICAL"] }, description: "Flames visible from the building", assistanceNeeded: "Qualified fire services only" });
 assert.deepEqual(professional.assigned_codes.sort(), ["FIRE_RESCUE", "MEDICAL", "ELECTRICITY"].sort());
+const urgentBuildingFire = planResponse({
+  ...input,
+  aiAssessment: {
+    ...assessment,
+    category: "fire",
+    title: "Active fire in occupied building",
+    severity: "critical",
+    human_review_required: true,
+    life_risk_indicators: ["People may be inside"],
+    recommended_departments: ["Fire & Rescue", "Medical Response"],
+  },
+  description: "Flames and smoke visible from an occupied building",
+  assistanceNeeded: "Fire suppression and rescue",
+  immediateDanger: "yes",
+  priorityBand: "Critical",
+});
+assert.equal(urgentBuildingFire.mode, "automatic");
+assert.deepEqual(urgentBuildingFire.assigned_codes.sort(), ["FIRE_RESCUE", "MEDICAL"].sort());
+assert.match(urgentBuildingFire.reasons[0], /dispatched immediately/);
+for (const [description, category, department] of [
+  ["The building is on fire and flames are visible", "fire", "FIRE_RESCUE"],
+  ["A fallen power line is sparking on the footpath", "electrical_hazard", "ELECTRICITY"],
+  ["A fallen tree is blocking the road", "road_blockage", "MUNICIPAL"],
+  ["A person is unconscious and bleeding", "medical_emergency", "MEDICAL"],
+] as const) {
+  assert.equal(reportCategory(null, description), category);
+  const decision = planResponse({ ...input, aiAssessment: null, description, assistanceNeeded: "Emergency help needed", immediateDanger: "yes" });
+  assert.equal(decision.mode, "needs_review");
+  assert.ok(decision.assigned_codes.includes(department), description);
+  assert.ok(!decision.assigned_codes.includes("NGO_RELIEF"));
+}
+assert.equal(reportCategory(null, "No fire is visible. Food supplies needed at the shelter."), "other");
+assert.equal(reportCategory(null, "Please contact the fire department for an update"), "other");
+const missingMedical = planResponse({ ...input, aiAssessment: null, description: "The building is on fire", departments: SEED_DEPARTMENT_CATALOG.filter(d => d.code !== "MEDICAL") });
+assert.ok(missingMedical.assigned_codes.includes("FIRE_RESCUE"), "A missing secondary team must not prevent Fire from receiving its report");
 for (const profile of SEED_PROFILES) assert.equal(profileAccessError(profile), null);
 assert.ok(profileAccessError({ ...SEED_PROFILES[6], department: SEED_DEPARTMENT_CATALOG[0] }));
 assert.equal(new Set(DEPARTMENT_CATALOG.map(d => d.code)).size, 11);
@@ -78,16 +116,19 @@ async function main() {
   const photoName = "12345678-1234-4234-8234-123456789012.png";
   const rpcCalls: { incident_data: { routing_decision: { mode: string; assigned_codes: string[] }; status: string }; report_data: { reporter_id: string }; actor_id: string }[] = [];
   let missingSchema = false;
+  let staleSubmitFunction = false;
   let nearbyRows: unknown[] = [];
   globalThis.fetch = async (resource, init) => {
     const url = new URL(resource instanceof Request ? resource.url : String(resource));
     assert.equal(url.hostname, "routing-tests.example.invalid");
     if (url.pathname === "/storage/v1/object/list/incident-evidence") return Response.json([{ name: photoName }]);
+    if (url.pathname.startsWith("/storage/v1/object/incident-evidence/")) return new Response(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=", "base64"), { headers: { "Content-Type": "image/png" } });
     if (url.pathname.startsWith("/storage/v1/object/sign/incident-evidence/")) return Response.json({ signedURL: "/object/sign/incident-evidence/test.png?token=test-only" });
     if (url.pathname === "/rest/v1/departments") return missingSchema
       ? Response.json({ code: "42703", message: "Missing relief routing columns" }, { status: 400 })
       : Response.json(SEED_DEPARTMENT_CATALOG);
     if (url.pathname === "/rest/v1/incidents") return Response.json(nearbyRows);
+    if (url.pathname === "/rest/v1/rpc/civiscope_deployment_status") return Response.json({ schema_version: staleSubmitFunction ? "20261103" : "20261105", report_delivery_installed: !staleSubmitFunction });
     if (url.pathname === "/rest/v1/rpc/civiscope_submit_report") {
       rpcCalls.push(JSON.parse(String(init?.body)));
       return new Response(null, { status: 204 });
@@ -105,10 +146,14 @@ async function main() {
     assert.equal(rpcCalls[0].report_data.reporter_id, SEED_PROFILES[3].id);
     await real.submitCitizenReport({ ...report, aiAssessment: null });
     assert.equal(rpcCalls[1].incident_data.routing_decision.mode, "needs_review");
-    assert.deepEqual(rpcCalls[1].incident_data.routing_decision.assigned_codes, []);
+    assert.deepEqual(rpcCalls[1].incident_data.routing_decision.assigned_codes, ["MUNICIPAL"]);
     nearbyRows = [{ id: "12345678-0000-4000-8000-123456789012", title: "Existing nearby flood", category: "flood", latitude: 18.52, longitude: 73.85, description: null, status: "open" }];
     await real.submitCitizenReport({ ...report });
     assert.equal(rpcCalls[2].incident_data.routing_decision.mode, "needs_review", "A nearby legacy incident with nullable description must still prevent duplicate assignment");
+    staleSubmitFunction = true;
+    await assert.rejects(real.submitCitizenReport({ ...report }), /deployment-readiness migrations/);
+    assert.equal(rpcCalls.length, 3, "An older submit RPC must not silently discard assignments");
+    staleSubmitFunction = false;
     missingSchema = true;
     await assert.rejects(real.submitCitizenReport({ ...report }), /India relief routing migrations/);
     assert.equal(rpcCalls.length, 3, "Unmigrated projects must fail before a mutation");

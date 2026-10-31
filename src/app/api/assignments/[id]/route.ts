@@ -9,7 +9,7 @@ const UpdateAssignmentSchema = z.object({
   status: z
     .enum(["en_route", "on_site", "in_progress", "resolved", "rejected"])
     .optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
   userId: z.string().optional(),
 });
 

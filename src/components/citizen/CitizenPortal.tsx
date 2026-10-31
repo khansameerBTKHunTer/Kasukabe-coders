@@ -3,6 +3,7 @@ import Image from "next/image";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ReportForm } from "./ReportForm";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { Report, Profile } from "@/types";
 import {
   FileText,
@@ -52,6 +53,7 @@ export const CitizenPortal: React.FC<{ currentUser: Profile }> = ({
       setIsLoading(false);
     }
   }, [currentUser.id]);
+  useLiveRefresh(fetchReports, activeTab === "my_reports");
 
   useEffect(() => {
     fetchReports();

@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 const IncidentMap = dynamic(
   () => import("../map/IncidentMap").then((mod) => mod.IncidentMap),
@@ -86,6 +87,8 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
       setIsLoading(false);
     }
   }, [currentUser.department_id]);
+
+  useLiveRefresh(fetchDepartmentIncidents);
 
   useEffect(() => {
     fetchDepartmentIncidents();

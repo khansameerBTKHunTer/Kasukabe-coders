@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Incident } from "@/types";
+import { mapPriority, PRIORITY_MARKERS } from "@/lib/map-priority";
 
 interface IncidentMapProps {
   incidents: Incident[];
@@ -61,12 +62,18 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
               maxZoom: 19,
             },
           ).addTo(map);
+          let tileBatchFailed = false;
+          tiles.on("loading", () => { tileBatchFailed = false; });
           tiles.on("tileerror", () => {
+            tileBatchFailed = true;
             if (isMounted)
               setMapError(
                 "Map tiles are unavailable. Use the incident list to select and review incidents.",
               );
           });
+          // Leaflet also emits load after failed tiles finish. Keep the warning
+          // until a later tile batch actually succeeds.
+          tiles.on("load", () => { if (isMounted && !tileBatchFailed) setMapError(""); });
 
           const markersGroup = L.layerGroup().addTo(map);
           markersLayerRef.current = markersGroup;
@@ -101,77 +108,49 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
     markersGroup.clearLayers();
     const bounds = L.latLngBounds([]);
 
-    incidents.forEach((incident) => {
+    incidents.filter(hasValidLocation).forEach((incident) => {
       const isSelected = incident.id === selectedIncidentId;
       const lat = incident.latitude;
       const lng = incident.longitude;
 
       bounds.extend([lat, lng]);
 
-      const colors = {
-        Critical: {
-          bg: "#ef4444",
-          ring: "rgba(239, 68, 68, 0.4)",
-          text: "#ffffff",
-        },
-        High: {
-          bg: "#f97316",
-          ring: "rgba(249, 115, 22, 0.4)",
-          text: "#ffffff",
-        },
-        Medium: {
-          bg: "#eab308",
-          ring: "rgba(234, 179, 8, 0.4)",
-          text: "#1e293b",
-        },
-        Low: {
-          bg: "#10b981",
-          ring: "rgba(16, 185, 129, 0.4)",
-          text: "#ffffff",
-        },
-      }[incident.priority_band] || {
-        bg: "#6d5947",
-        ring: "rgba(100, 116, 139, 0.4)",
-        text: "#ffffff",
-      };
-
-      const markerHtml = `
-        <div style="
-          width: ${isSelected ? "38px" : "30px"};
-          height: ${isSelected ? "38px" : "30px"};
-          background-color: ${colors.bg};
-          border: 3px solid ${isSelected ? "#ffffff" : colors.ring};
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 0 ${isSelected ? "20px" : "10px"} ${colors.bg};
-          cursor: pointer;
-          transition: transform 0.2s ease;
-          transform: ${isSelected ? "scale(1.15)" : "scale(1)"};
-        ">
-          <span style="
-            color: ${colors.text};
-            font-size: ${isSelected ? "12px" : "10px"};
-            font-weight: 700;
-            font-family: monospace;
-          ">
-            ${Math.round(incident.priority_score)}
-          </span>
-        </div>
-      `;
+      const colors = mapPriority(incident.priority_band);
+      const score = Number.isFinite(incident.priority_score) ? incident.priority_score : 0;
+      const label = `${colors.label} priority: ${incident.title}. Score ${score.toFixed(1)} of 100.`;
+      const markerHtml = `<div class="priority-map-marker priority-${colors.className}${isSelected ? " is-selected" : ""}"
+        data-priority="${colors.label}" aria-hidden="true" style="--marker-color:${colors.bg};--marker-ring:${colors.ring};--marker-text:${colors.text};--marker-size:${colors.size}px">
+        <span class="priority-marker-halo"></span>
+        <span class="priority-marker-body"><span class="priority-marker-content"><small>${colors.symbol}</small><strong>${Math.round(score)}</strong></span></span>
+        <span class="priority-marker-label">${colors.label}</span>
+      </div>`;
 
       const customIcon = L.divIcon({
         className: "custom-incident-marker",
         html: markerHtml,
-        iconSize: [isSelected ? 38 : 30, isSelected ? 38 : 30],
-        iconAnchor: [isSelected ? 19 : 15, isSelected ? 19 : 15],
+        iconSize: [96, 82],
+        iconAnchor: [48, 30],
       });
 
       const marker = L.marker([lat, lng], {
         icon: customIcon,
-        title: incident.title,
-        alt: incident.title,
+        title: label,
+        alt: label,
+        keyboard: true,
+        zIndexOffset: isSelected ? 1200 : colors.rank * 200,
+      });
+      marker.on("add", () => {
+        const element = marker.getElement();
+        element?.setAttribute("role", "button");
+        element?.setAttribute("aria-label", label);
+        element?.setAttribute("aria-pressed", String(isSelected));
+        element?.addEventListener("keydown", (event: KeyboardEvent) => {
+          if (event.key === " " || event.key === "Enter") {
+            event.preventDefault();
+            event.stopPropagation();
+            marker.fire("click");
+          }
+        });
       });
 
       const popupHtml = `
@@ -186,10 +165,10 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
               font-weight: 600;
               border: 1px solid ${colors.bg}60;
             ">
-              ${incident.priority_band} (${incident.priority_score.toFixed(1)})
+              ${colors.label} (${score.toFixed(1)})
             </span>
             <span style="font-size: 11px; color: #6d5947; text-transform: uppercase;">
-              ${incident.category.replace("_", " ")}
+              ${escapeHtml(incident.category).replaceAll("_", " ")}
             </span>
           </div>
           <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: #142841; line-height: 1.3;">
@@ -201,7 +180,7 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">
             <span style="color: #4c6680;">Evidence: ${incident.evidence_count || 1} photo(s)</span>
             <span style="color: ${incident.verification_status === "verified" ? "#10b981" : "#f59e0b"};">
-              ● ${incident.verification_status}
+              ● ${escapeHtml(incident.verification_status)}
             </span>
           </div>
         </div>
@@ -217,10 +196,11 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
       });
 
       markersGroup.addLayer(marker);
+      if (isSelected) marker.openPopup();
     });
 
     if (selectedIncidentId && focusedId.current !== selectedIncidentId) {
-      const selected = incidents.find((i) => i.id === selectedIncidentId);
+      const selected = incidents.find((i) => i.id === selectedIncidentId && hasValidLocation(i));
       if (selected) {
         fitted.current = true;
         map.flyTo([selected.latitude, selected.longitude], 15, { duration: 1 });
@@ -264,35 +244,36 @@ export const IncidentMap: React.FC<IncidentMapProps> = ({
           {mapError}
         </p>
       )}
+      {incidents.some(incident => !hasValidLocation(incident)) && (
+        <p role="status" className="absolute bottom-2 left-2 z-20 max-w-[70%] rounded bg-slate-50 p-2 text-xs text-amber-700">
+          Some reports have invalid coordinates. Review those incidents in the list.
+        </p>
+      )}
       {/* Map Legend Overlay */}
       <div className="absolute top-4 right-4 z-10 glass-panel px-3 py-2 rounded-lg text-xs space-y-1.5 shadow-lg border border-slate-200/60 pointer-events-auto">
         <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between gap-4">
           <span>Priority Bands</span>
           <span className="text-[10px] text-slate-500 font-mono">0-100</span>
         </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
-          <span>Critical (80-100)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-          <span>High (60-79.9)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <span>Medium (35-59.9)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-          <span>Low (0-34.9)</span>
-        </div>
+        {Object.entries(PRIORITY_MARKERS).map(([band, style], index) => (
+          <div key={band} className="flex items-center gap-2 text-slate-700">
+            <span aria-hidden="true" className={`priority-legend-symbol priority-${band.toLowerCase()}`} style={{ background: style.bg, color: style.text }}>{style.symbol}</span>
+            <span>{band} ({["80–100", "60–79.9", "35–59.9", "0–34.9"][index]})</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
 
-function escapeHtml(value: string) {
-  return value.replace(
+function hasValidLocation(incident: Incident) {
+  return typeof incident.latitude === "number" && typeof incident.longitude === "number" &&
+    Number.isFinite(incident.latitude) && Number.isFinite(incident.longitude) &&
+    Math.abs(incident.latitude) <= 90 && Math.abs(incident.longitude) <= 180;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replace(
     /[&<>"']/g,
     (character) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[

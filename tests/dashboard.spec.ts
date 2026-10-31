@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 async function loginAs(page: Page, email: string) {
   const response = await page.request.post("/api/demo/session", {
-    data: { email, password: "CiviscopeDemo!2026" },
+    data: { email, password: "1234" },
   });
   expect(response.ok()).toBeTruthy();
   await page.goto("/");
@@ -14,7 +14,7 @@ test.beforeEach(async ({ request, page }) => {
     }),
   );
   const login = await request.post("/api/demo/session", {
-    data: { email: "admin@civiscope.demo", password: "CiviscopeDemo!2026" },
+    data: { email: "admin@civiscope.demo", password: "1234" },
   });
   expect(
     login.ok(),
@@ -22,7 +22,7 @@ test.beforeEach(async ({ request, page }) => {
   ).toBeTruthy();
   await request.post("/api/seed/reset");
   const browserLogin = await page.request.post("/api/demo/session", {
-    data: { email: "admin@civiscope.demo", password: "CiviscopeDemo!2026" },
+    data: { email: "admin@civiscope.demo", password: "1234" },
   });
   expect(browserLogin.ok()).toBeTruthy();
 });
@@ -174,4 +174,63 @@ test("Load failures are visible and Refresh recovers", async ({ page }) => {
     page.getByRole("button", { name: /Open incident:/ }),
   ).toHaveCount(4);
   await expect(page.locator('p[role="alert"]')).toHaveCount(0);
+});
+
+test("Map markers explain all priority bands and support keyboard selection", async ({ page, request }) => {
+  const payload = await (await request.get("/api/incidents")).json();
+  payload.incidents = payload.incidents.map((incident: object, index: number) => ({
+    ...incident,
+    priority_band: ["Critical", "High", "Medium", "Low"][index],
+    priority_score: [95, 70, 45, 10][index],
+  }));
+  await page.route("**/api/incidents", route => route.fulfill({ json: payload }));
+  await page.goto("/");
+  for (const band of ["Critical", "High", "Medium", "Low"]) {
+    await expect(page.locator(`.priority-map-marker[data-priority="${band}"] .priority-marker-label`)).toHaveText(band);
+    await expect(page.getByRole("button", { name: new RegExp(`^${band} priority:`) })).toHaveCount(1);
+  }
+  const critical = page.getByRole("button", { name: /^Critical priority:/ });
+  await critical.focus();
+  await critical.press("Enter");
+  await expect(page.getByRole("button", { name: "Close incident details" })).toBeVisible();
+  await expect(page.locator('.priority-critical.is-selected')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /^Critical priority:/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Close incident details" }).click();
+  const high = page.getByRole("button", { name: /^High priority:/ });
+  await high.focus();
+  await high.press("Space");
+  await expect(page.locator('.priority-high.is-selected')).toHaveCount(1);
+});
+
+test("Priority changes update map labels and invalid coordinates do not crash the map", async ({ page, request }) => {
+  const payload = await (await request.get("/api/incidents")).json();
+  const incident = payload.incidents.find((item: { priority_band: string }) => item.priority_band === "Medium");
+  await page.goto("/");
+  await expect(page.locator('.priority-map-marker[data-priority="Medium"]')).toHaveCount(1);
+  const changed = await request.patch(`/api/incidents/${incident.id}`, { data: {
+    action: "override_priority", priorityScore: 99, overrideReason: "Map priority regression test",
+  } });
+  expect(changed.ok()).toBeTruthy();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.locator('.priority-map-marker[data-priority="Critical"]')).toHaveCount(3);
+  await expect(page.locator('.priority-map-marker[data-priority="Medium"]')).toHaveCount(0);
+  payload.incidents[0].latitude = 1000;
+  await page.route("**/api/incidents", route => route.fulfill({ json: payload }));
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "invalid coordinates" })).toBeVisible();
+  await expect(page.locator('.custom-incident-marker')).toHaveCount(3);
+});
+
+test("Map tile failures keep a visible warning and successful tile loading clears it", async ({ page }) => {
+  let failTiles = true;
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=", "base64");
+  await page.route(/https:\/\/[abc]\.tile\.openstreetmap\.org\//, route => failTiles
+    ? route.abort()
+    : route.fulfill({ contentType: "image/png", body: png }));
+  await page.goto("/");
+  await expect(page.getByRole("status").filter({ hasText: "Map tiles are unavailable" })).toBeVisible();
+  await expect(page.locator('.custom-incident-marker')).toHaveCount(4);
+  failTiles = false;
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Map tiles are unavailable" })).toHaveCount(0);
 });

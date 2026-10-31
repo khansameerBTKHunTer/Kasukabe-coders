@@ -275,10 +275,10 @@ Respond with ONLY a JSON object formatted strictly as follows:
       // Clean possible markdown code fences if model returned them
       const cleanJson = rawContent.replace(/```json\n?|\n?```/g, "").trim();
       parsed = JSON.parse(cleanJson);
-    } catch (e: any) {
+    } catch {
       return {
         success: false,
-        error: `Failed to parse AI output as JSON: ${e.message}`,
+        error: "The vision model returned an unreadable assessment. Retry or continue with your observations.",
       };
     }
 
@@ -286,7 +286,7 @@ Respond with ONLY a JSON object formatted strictly as follows:
     if (!validated.success) {
       return {
         success: false,
-        error: `AI response failed schema validation: ${validated.error.issues.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ")}`,
+        error: "The vision assessment was incomplete. Retry or continue with your observations.",
       };
     }
 
@@ -303,7 +303,7 @@ Respond with ONLY a JSON object formatted strictly as follows:
     }
     return {
       success: false,
-      error: `Network or runtime failure calling the vision provider: ${err.message}`,
+      error: "The vision provider could not be reached. Retry or continue with your observations.",
     };
   } finally {
     clearTimeout(timeoutId);

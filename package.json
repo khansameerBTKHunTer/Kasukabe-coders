@@ -2,6 +2,7 @@
   "name": "damage-mapper",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": ">=22.0.0" },
   "scripts": {
     "dev": "node scripts/serve.mjs dev",
     "build": "next build",
@@ -9,18 +10,24 @@
     "lint": "eslint .",
     "test:engine": "node --import tsx scripts/test-engine.ts && node --import tsx scripts/test-sitrep.ts && node --import tsx scripts/test-regressions.ts",
     "test:browser": "playwright test",
+    "test:browser:local": "CIVISCOPE_TEST_SERVER=true playwright test",
     "test:startup": "node scripts/check-startup.mjs",
     "typecheck": "tsc --noEmit",
     "test:database": "node scripts/test-database.mjs",
-    "test:api": "node --import tsx scripts/test-api.ts",
+    "test:api": "node --import tsx scripts/test-api.ts && node --import tsx scripts/test-api-contracts.ts",
     "dev:demo": "CIVISCOPE_DEMO_MODE=true npm run dev",
     "test:vision": "node --import tsx scripts/test-vision.ts",
-    "test:routing": "node --import tsx scripts/test-routing.ts"
+    "test:routing": "node --import tsx scripts/test-routing.ts",
+    "test:uploads": "node --import tsx scripts/test-uploads.ts",
+    "check:deploy": "node scripts/check-deployment.mjs",
+    "check:connections": "node scripts/check-connections.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test:engine && npm run test:api && npm run test:database && npm run test:vision && npm run test:routing && npm run test:uploads"
   },
   "imports": {
     "@/*": "./src/*"
   },
   "dependencies": {
+    "@next/env": "^15.5.28",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.6",
     "clsx": "^2.1.1",

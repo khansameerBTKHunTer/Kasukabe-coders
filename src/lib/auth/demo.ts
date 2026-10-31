@@ -2,6 +2,7 @@ import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
 import { SEED_PROFILES } from "@/lib/data-store";
 
 export const DEMO_COOKIE = "civiscope_demo";
+export const DEMO_PASSWORD = "1234";
 const state = globalThis as typeof globalThis & {
   civiscopeDemoSecret?: string;
 };

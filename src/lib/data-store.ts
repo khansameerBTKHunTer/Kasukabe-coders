@@ -11,7 +11,7 @@ import {
   IncidentStatus
 } from '../types';
 import { calculatePriorityScore } from './priority-engine';
-import { recommendDepartments, KNOWN_DEPARTMENTS, getDepartmentIdByName } from './department-router';
+import { recommendDepartments, KNOWN_DEPARTMENTS, reportCategory } from './department-router';
 import { findDuplicateCandidates } from './duplicate-detector';
 
 import { SEED_DEPARTMENT_CATALOG } from "./departments";
@@ -590,6 +590,7 @@ export const IncidentService = {
   }) => {
     const store = getStore();
     const reportId = `rep-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const category = reportCategory(params.aiAssessment, params.description);
 
     // Create report record
     const newReport: Report = {
@@ -615,7 +616,7 @@ export const IncidentService = {
       {
         incident_latitude: params.incidentLatitude,
         incident_longitude: params.incidentLongitude,
-        category: params.aiAssessment?.category,
+        category,
         description: params.description,
       },
       store.incidents.filter(i => !['resolved', 'closed'].includes(i.status)),
@@ -624,7 +625,7 @@ export const IncidentService = {
 
     // 2. Compute priority score deterministically
     const priorityResult = calculatePriorityScore({
-      category: params.aiAssessment?.category || 'other',
+      category,
       immediateDanger: params.immediateDanger,
       reportedPeopleAffected: params.reportedPeopleAffected,
       aiAssessment: params.aiAssessment,
@@ -633,11 +634,10 @@ export const IncidentService = {
 
     // 3. Recommend department deterministically
     const deptRecommendation = recommendDepartments(
-      params.aiAssessment?.category || 'other',
+      category,
       params.description,
       params.aiAssessment?.secondary_hazards || []
     );
-    const recommendedDeptId = getDepartmentIdByName(deptRecommendation.primaryDepartmentName);
     const routing = planResponse({ ...params, priorityBand: priorityResult.priorityBand, hasDuplicateCandidates: duplicateMatches.some(m => m.duplicateConfidence !== 'unlikely'), departments: SEED_DEPARTMENTS });
 
     // 4. Create new incident entity initially (unless confirmed as duplicate)
@@ -645,7 +645,7 @@ export const IncidentService = {
     const newIncident: Incident = {
       id: incidentId,
       title: params.aiAssessment?.title || `Disaster Report: ${params.description.slice(0, 40)}...`,
-      category: params.aiAssessment?.category || 'other',
+      category,
       latitude: params.incidentLatitude,
       longitude: params.incidentLongitude,
       description: params.description,
@@ -660,8 +660,8 @@ export const IncidentService = {
       review_required: routing.mode === 'needs_review',
       routing_decision: routing,
       verification_status: 'unverified',
-      primary_department_id: routing.mode === 'automatic' ? recommendedDeptId || null : null,
-      primary_department: routing.mode === 'automatic' ? SEED_DEPARTMENTS.find(d => d.id === recommendedDeptId) || null : null,
+      primary_department_id: routing.assigned_codes.length ? SEED_DEPARTMENTS.find(d => d.code === (routing.assigned_codes.includes(deptRecommendation.primaryDepartmentCode) ? deptRecommendation.primaryDepartmentCode : routing.assigned_codes[0]))?.id ?? null : null,
+      primary_department: routing.assigned_codes.length ? SEED_DEPARTMENTS.find(d => d.code === (routing.assigned_codes.includes(deptRecommendation.primaryDepartmentCode) ? deptRecommendation.primaryDepartmentCode : routing.assigned_codes[0])) ?? null : null,
       status: 'open',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -673,14 +673,14 @@ export const IncidentService = {
     // Persist to store
     store.reports.unshift(newReport);
     store.incidents.unshift(newIncident);
-    if (routing.mode === 'automatic') {
+    if (routing.assigned_codes.length) {
       for (const code of routing.assigned_codes) {
         const department = SEED_DEPARTMENTS.find(d => d.code === code)!;
         store.assignments.unshift({ id: `auto-${incidentId}-${code}`, incident_id: incidentId, department_id: department.id, department, assigned_by: null, assignment_status: 'pending', assignment_source: 'automatic', completion_verification: 'not_submitted', assigned_at: new Date().toISOString(), notes: routing.reasons.join(' ') });
       }
       newIncident.status = 'assigned';
     }
-    store.activityLogs.unshift({ id: `routing-${incidentId}`, incident_id: incidentId, actor_id: null, action: routing.mode === 'automatic' ? 'response_auto_assigned' : 'routing_review_required', new_value: routing, reason: routing.reasons.join(' '), created_at: new Date().toISOString() });
+    store.activityLogs.unshift({ id: `routing-${incidentId}`, incident_id: incidentId, actor_id: null, action: routing.assigned_codes.length ? 'response_auto_assigned' : 'routing_review_required', new_value: routing, reason: routing.reasons.join(' '), created_at: new Date().toISOString() });
 
     // Add activity log
     const log: ActivityLog = {

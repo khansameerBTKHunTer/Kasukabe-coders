@@ -317,8 +317,8 @@ export function ReportForm({ onSuccess }: { onSuccess?: () => void }) {
           score={result.incident.priority_score}
         />
         <p className="max-w-lg text-sm text-slate-500">
-          {result.incident.routing_decision?.mode === "automatic"
-            ? "Response teams have been assigned automatically and are awaiting acknowledgement. Admins will verify completed work."
+          {result.incident.routing_decision?.assigned_codes.length
+            ? "Response teams have received your report and are awaiting acknowledgement. Admins will review the evidence and verify completed work."
             : "Your report needs admin review before response teams are assigned."}
         </p>
         {result.aiAssessment && (
@@ -668,7 +668,7 @@ export function ReportForm({ onSuccess }: { onSuccess?: () => void }) {
         </div>
         <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center">
           <p className="max-w-xl text-xs leading-relaxed text-slate-500">
-            Clear routine reports are assigned automatically. Cases needing coordination go to an admin. Teams must acknowledge their tasks before responding.
+            Clear reports, including urgent hazards, are assigned immediately to professional response teams. Ambiguous or specialist cases go to an admin. Teams must acknowledge their tasks before responding.
           </p>
           <button
             type="submit"

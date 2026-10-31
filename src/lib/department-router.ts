@@ -1,4 +1,26 @@
-import { IncidentCategory } from '../types';
+import { AIAssessment, IncidentCategory } from '../types';
+
+// Use explicit citizen observations when vision is unavailable or uncertain.
+// These are routing hints, never an invented visual assessment or verification.
+export function reportedHazardCategories(description: string): IncidentCategory[] {
+  const text = description.toLowerCase()
+    .replace(/\bfire (department|brigade|services?|team|extinguisher)\b/g, "")
+    .replace(/\b(?:no|not|without)\s+(?:(?:active|visible|any|signs of|evidence of|on)\s+){0,3}(?:fire|flames?|smoke|flooding|injuries|injury)\b/g, "");
+  const matches: IncidentCategory[] = [];
+  if (/\b(fire|flames?|burning|ablaze)\b/.test(text)) matches.push("fire");
+  if (/\b(electrocut\w*|sparking|live wires?|downed wires?|fallen (?:power |electric(?:al)? )?(?:lines?|poles?)|transformer|power lines?|electrical hazard)\b/.test(text)) matches.push("electrical_hazard");
+  if (/\b(collapsed?|collapsing|structural damage|cracked (?:walls?|building)|building damage)\b/.test(text)) matches.push("building_damage");
+  if (/\b(landslide|mudslide)\b/.test(text)) matches.push("landslide");
+  if (/\b(bleeding|unconscious|injured|injuries|medical emergency|casualties)\b/.test(text)) matches.push("medical_emergency");
+  if (/\b(flood(?:ing|ed)?|waterlogged|waterlogging|blocked (?:roadside )?drain|shallow water|standing water)\b/.test(text)) matches.push("flood");
+  if (/\b((?:fallen tree|debris|tree).*(?:block|road)|road (?:is )?blocked|blocked road|road blockage)\b/.test(text)) matches.push("road_blockage");
+  return matches;
+}
+
+export function reportCategory(ai: AIAssessment | null | undefined, description: string): IncidentCategory {
+  if (ai && ai.confidence >= 0.8 && ai.category !== "other") return ai.category;
+  return reportedHazardCategories(description)[0] ?? "other";
+}
 
 export interface DepartmentRecommendation {
   primaryDepartmentName: string;

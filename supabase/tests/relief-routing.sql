@@ -60,8 +60,15 @@ BEGIN
  END LOOP;
  PERFORM public.civiscope_command('close','99100000-0000-4000-8000-000000000001','{}','99000000-0000-4000-8000-000000000001');
  ASSERT (SELECT status='closed' FROM public.incidents WHERE id='99100000-0000-4000-8000-000000000001'), 'Verified response closes';
- -- An urgent incident remains unassigned until an admin selects teams.
+ -- Clear urgent hazards are dispatched immediately to professional teams.
+ i := '{"id":"99100000-0000-4000-8000-000000000003","title":"Active building fire","category":"fire","latitude":18.53,"longitude":73.86,"severity":"critical","priority_score":94,"priority_band":"Critical","verification_status":"unverified","status":"assigned","ai_assessment":{"category":"fire","confidence":0.96,"human_review_required":true,"severity":"critical","life_risk_indicators":["People may be inside"]},"routing_decision":{"mode":"automatic","suggested_codes":["FIRE_RESCUE","MEDICAL"],"assigned_codes":["FIRE_RESCUE","MEDICAL"],"reasons":["Clear urgent incident: professional response teams dispatched immediately"],"policy_version":"india-relief-v2"}}';
+ r := '{"id":"99200000-0000-4000-8000-000000000003","reporter_id":"99000000-0000-4000-8000-000000000002","incident_id":"99100000-0000-4000-8000-000000000003","image_path":"supabase://incident-evidence/test/fire.png","description":"Flames and smoke visible from an occupied building","incident_latitude":18.53,"incident_longitude":73.86,"source_type":"on_site","assistance_needed":"Fire suppression and rescue","immediate_danger":"yes","verification_status":"unverified"}';
+ PERFORM public.civiscope_submit_report(r,i,'99000000-0000-4000-8000-000000000002');
+ ASSERT (SELECT status='assigned' FROM public.incidents WHERE id='99100000-0000-4000-8000-000000000003'), 'Urgent fire is assigned immediately';
+ ASSERT (SELECT count(*)=2 FROM public.assignments WHERE incident_id='99100000-0000-4000-8000-000000000003' AND department_id IN ('11111111-1111-1111-1111-111111111111','44444444-4444-4444-4444-444444444444')), 'Fire and medical teams receive urgent tasks';
+ -- Ambiguous or specialist incidents remain unassigned until admin review.
  i := jsonb_set(jsonb_set(original_i,'{id}','"99100000-0000-4000-8000-000000000002"'),'{routing_decision,mode}','"needs_review"');
+ i := jsonb_set(i,'{routing_decision,assigned_codes}','[]');
  r := jsonb_set(jsonb_set(r,'{id}','"99200000-0000-4000-8000-000000000002"'),'{incident_id}','"99100000-0000-4000-8000-000000000002"');
  PERFORM public.civiscope_submit_report(r,i,'99000000-0000-4000-8000-000000000002');
  ASSERT NOT EXISTS (SELECT 1 FROM public.assignments WHERE incident_id='99100000-0000-4000-8000-000000000002'), 'Review cases receive no automatic tasks';

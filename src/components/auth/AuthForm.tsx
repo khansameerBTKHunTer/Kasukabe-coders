@@ -2,14 +2,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { departmentDefinition } from "@/lib/departments";
 import type { Department } from "@/types";
 
 export type FormMode = "login" | "register" | "forgot" | "reset" | "demo";
 const field =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600";
+  "auth-input w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600";
 const titles: Record<FormMode, string> = {
   login: "Sign in",
   register: "Create an account",
@@ -124,8 +124,8 @@ export function AuthForm({ mode }: { mode: FormMode }) {
           throw new Error(
             "Enter a full name or department unit name with at least 2 characters.",
           );
-        if (password.length < 8)
-          throw new Error("Use a password with at least 8 characters.");
+        if (password.length < 6)
+          throw new Error("Supabase accounts require at least 6 characters.");
         const department = departments.find((d) => d.id === departmentId);
         if (accountType === "rescue" && !department)
           throw new Error("Select an available department.");
@@ -176,8 +176,8 @@ export function AuthForm({ mode }: { mode: FormMode }) {
           throw new Error(
             "This recovery session is invalid or expired. Request a new reset link.",
           );
-        if (password.length < 8)
-          throw new Error("Use a password with at least 8 characters.");
+        if (password.length < 6)
+          throw new Error("Supabase accounts require at least 6 characters.");
         if (password !== confirm)
           throw new Error("The passwords do not match.");
         const { error } = await client.auth.updateUser({ password });
@@ -198,16 +198,42 @@ export function AuthForm({ mode }: { mode: FormMode }) {
   };
   const hasPassword = ["login", "register", "reset", "demo"].includes(mode);
   return (
-    <section className="auth-screen">
-      <div className="auth-panel">
-        <div className="mb-6 flex items-center gap-3">
-          <ShieldCheck className="h-9 w-9 text-blue-600" />
-          <div>
-            <p className="text-lg font-bold tracking-wide">CIVISCOPE</p>
-            <p className="text-xs text-slate-500">Damage Mapper</p>
-          </div>
+    <section className={`auth-screen auth-${mode}`}>
+      <div className="auth-story">
+        <div className="auth-story-brand">
+          <span className="auth-logo">CS</span>
+          <span className="auth-brand-copy">
+            <strong>CIVISCOPE</strong>
+            <small>Damage Mapper</small>
+          </span>
         </div>
-        <h1 className="text-2xl font-semibold">{titles[mode]}</h1>
+        <span className="auth-color-rule" aria-hidden="true" />
+        <div className="auth-story-message">
+          <p>Faster Information.<br />Safer Communities.</p>
+          <span>Report · Map · Respond · Rebuild</span>
+        </div>
+      </div>
+      <div className="auth-panel-column">
+        <div className="auth-panel">
+        {["login", "demo"].includes(mode) ? (
+          <div className="auth-welcome">
+            <p>Welcome to</p>
+            <h1>CIVISCOPE</h1>
+            <strong>Damage Mapper</strong>
+            <span className="auth-color-rule" aria-hidden="true" />
+            <p className="auth-welcome-copy">Sign in to report, monitor and respond<br />to disaster incidents.</p>
+            <span className="sr-only">{titles[mode]}</span>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-center gap-3">
+            <span className="auth-logo auth-logo-small">CS</span>
+            <div>
+              <p className="text-lg font-bold tracking-wide">CIVISCOPE</p>
+              <p className="text-xs text-slate-500">Damage Mapper</p>
+            </div>
+          </div>
+        )}
+        {mode !== "login" && <h1 className="text-2xl font-semibold">{titles[mode]}</h1>}
         {mode === "demo" && (
           <p className="mt-2 text-sm text-amber-700">
             Fictional accounts and temporary data. This login cannot access the
@@ -333,15 +359,19 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                     ? "Official email"
                     : "Email"}
                 </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  className={field}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <div className="auth-field-wrap">
+                  <Mail className="auth-field-icon" size={18} aria-hidden="true" />
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="Email address"
+                    className={`${field} pl-12`}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
             )}
             {hasPassword && (
@@ -350,19 +380,21 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                   {mode === "reset" ? "New password" : "Password"}
                 </label>
                 <div className="relative">
+                  <LockKeyhole className="auth-field-icon" size={18} aria-hidden="true" />
                   <input
                     id="password"
                     type={show ? "text" : "password"}
                     required
-                    minLength={
-                      ["register", "reset"].includes(mode) ? 8 : undefined
-                    }
+                    minLength={mode === "demo" ? 4 : ["register", "reset"].includes(mode) ? 6 : undefined}
+                    inputMode={mode === "demo" ? "numeric" : undefined}
+                    pattern={mode === "demo" ? "[0-9]{4}" : undefined}
                     autoComplete={
                       ["register", "reset"].includes(mode)
                         ? "new-password"
                         : "current-password"
                     }
-                    className={`${field} pr-12`}
+                    placeholder="Password"
+                    className={`${field} pl-12 pr-12`}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -387,7 +419,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                   id="confirm"
                   type={show ? "text" : "password"}
                   required
-                  minLength={8}
+                  minLength={6}
                   autoComplete="new-password"
                   className={field}
                   value={confirm}
@@ -409,9 +441,9 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                 (mode === "reset" && (!recoverySession || !!auth.recoveryError))
               }
               type="submit"
-              className="w-full rounded-xl bg-primary px-4 py-2.5 font-semibold text-white hover:bg-primary-hover disabled:cursor-wait disabled:opacity-50"
+              className="auth-submit w-full rounded-xl bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover disabled:cursor-wait disabled:opacity-50"
             >
-              {busy
+              <span>{busy
                 ? "Please wait…"
                 : mode === "register"
                   ? "Create account"
@@ -419,7 +451,8 @@ export function AuthForm({ mode }: { mode: FormMode }) {
                     ? "Send reset link"
                     : mode === "reset"
                       ? "Update password"
-                      : "Sign in"}
+                      : "Sign in"}</span>
+              {!busy && ["login", "demo"].includes(mode) && <ArrowRight size={17} aria-hidden="true" />}
             </button>
           </fieldset>
         </form>
@@ -432,12 +465,13 @@ export function AuthForm({ mode }: { mode: FormMode }) {
           </Link>
         )}
         {mode === "login" && (
-          <p className="mt-5 text-center text-sm text-slate-500">
-            New to CIVISCOPE?{" "}
-            <Link href="/register" className="text-blue-700">
-              Create an account
+          <div className="auth-create-block">
+            <div className="auth-divider"><span>OR</span></div>
+            <Link href="/register" className="auth-create-link">
+              <strong>Create a new account</strong>
+              <span>Citizen or Rescue Department</span>
             </Link>
-          </p>
+          </div>
         )}
         {mode !== "login" && (
           <Link
@@ -461,7 +495,7 @@ export function AuthForm({ mode }: { mode: FormMode }) {
               Local demo credentials
             </p>
             <p className="mt-1">
-              Password: <code>CiviscopeDemo!2026</code>
+              Shared password: <code>1234</code>
             </p>
             <p className="mt-2">
               citizen@civiscope.demo · fire@civiscope.demo ·
@@ -476,6 +510,11 @@ export function AuthForm({ mode }: { mode: FormMode }) {
             )}
           </div>
         )}
+        </div>
+        <div className="auth-footer">
+          <span className="auth-color-rule" aria-hidden="true" />
+          <p>Disaster response for safer communities</p>
+        </div>
       </div>
     </section>
   );

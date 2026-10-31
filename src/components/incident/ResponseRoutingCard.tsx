@@ -21,6 +21,7 @@ export function ResponseRoutingCard({ incident, departments, isAdmin, onRefresh 
   return <section className={`space-y-2 rounded-xl border p-3 ${needsReview ? "border-amber-200 bg-amber-50" : "border-sky-200 bg-sky-50"}`} aria-label="Response routing">
     <h3 className="text-sm font-semibold">{routing?.mode === "automatic" ? "Response teams assigned automatically" : needsReview ? "Admin routing review required" : routing?.mode === "manual" ? "Response teams confirmed by admin" : "Existing response assignments"}</h3>
     {routing?.reasons.map((reason, index) => <p key={index} className="text-xs text-slate-700">{reason}</p>)}
+    {!!routing?.assigned_codes.length && <p className="text-xs font-semibold text-blue-700">Dispatched teams: {routing.assigned_codes.map(code => departments.find(d => d.code === code)?.name ?? code).join("; ")}. These teams can respond while review is pending.</p>}
     {!!routing?.suggested_codes.length && <p className="text-xs text-slate-700">Suggested teams: {routing.suggested_codes.map(code => departments.find(d => d.code === code)?.name ?? code).join("; ")}</p>}
     <p className="text-xs text-slate-500">Assignments are tasks in CIVISCOPE. Teams must acknowledge them; agency deployment is coordinated separately.</p>
     {isAdmin && needsReview && incident.status !== "closed" && <div className="space-y-2 border-t border-amber-200 pt-2">

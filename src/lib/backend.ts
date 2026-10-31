@@ -5,17 +5,20 @@ import { IncidentService, getStore, SEED_DEPARTMENTS } from "@/lib/data-store";
 import { ApiError, requireActor, type Actor } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculatePriorityScore } from "@/lib/priority-engine";
-import { recommendDepartments } from "@/lib/department-router";
+import { recommendDepartments, reportCategory } from "@/lib/department-router";
 import { findDuplicateCandidates } from "@/lib/duplicate-detector";
 import { planResponse, responseStatus } from "@/lib/response-routing";
+import { validatePhotoBytes } from "@/lib/photo-validation";
 
 export const EVIDENCE_BUCKET = "incident-evidence";
+const uploadValidation = globalThis as typeof globalThis & { civiscopeVerifiedPhotos?: Map<string, number> };
 export type SubmitReport = Parameters<
   typeof IncidentService.submitCitizenReport
 >[0];
 const activeStatuses = ["acknowledged", "en_route", "on_site", "in_progress"];
 function failure(error: { code?: string; message: string } | null) {
   if (!error) return;
+  if (error.code === "22P02") throw new ApiError(400, "Invalid record identifier.");
   if (error.code === "42501")
     throw new ApiError(
       403,
@@ -72,6 +75,19 @@ export async function validatePhoto(actor: Actor, path: string) {
         400,
         "The uploaded photograph could not be found. Upload it again.",
       );
+    // Signed uploads bypass this app's multipart handler. Validate the actual
+    // stored bytes before accepting evidence, not just its client MIME label.
+    const verified = (uploadValidation.civiscopeVerifiedPhotos ??= new Map());
+    const validationKey = `${process.env.NEXT_PUBLIC_SUPABASE_URL}:${path}`;
+    if ((verified.get(validationKey) ?? 0) <= Date.now()) {
+      const downloaded = await createAdminClient().storage.from(EVIDENCE_BUCKET)
+        .download(path.slice(`supabase://${EVIDENCE_BUCKET}/`.length));
+      if (downloaded.error || !downloaded.data)
+        throw new ApiError(503, "The uploaded photograph could not be verified. Retry shortly.");
+      validatePhotoBytes(Buffer.from(await downloaded.data.arrayBuffer()), downloaded.data.type);
+      if (verified.size >= 128) verified.delete(verified.keys().next().value!);
+      verified.set(validationKey, Date.now() + 5 * 60_000);
+    }
   }
 }
 export function statistics(incidents: Incident[], totalReports?: number) {
@@ -214,15 +230,16 @@ export class Backend {
       const result = await IncidentService.submitCitizenReport(params);
       return { ...result, duplicateCandidates: [] };
     }
+    const category = reportCategory(params.aiAssessment, params.description);
     const priorityResult = calculatePriorityScore({
-      category: params.aiAssessment?.category ?? "other",
+      category,
       immediateDanger: params.immediateDanger,
       reportedPeopleAffected: params.reportedPeopleAffected,
       aiAssessment: params.aiAssessment,
       sourceType: params.sourceType,
     });
     const recommendation = recommendDepartments(
-      params.aiAssessment?.category ?? "other",
+      category,
       params.description,
       params.aiAssessment?.secondary_hazards ?? [],
     );
@@ -241,7 +258,7 @@ export class Backend {
     }
     const { data: nearby, error: nearbyError } = await nearbyQuery;
     failure(nearbyError);
-    const duplicates = findDuplicateCandidates({ incident_latitude: params.incidentLatitude, incident_longitude: params.incidentLongitude, description: params.description, category: params.aiAssessment?.category }, (nearby ?? []) as Incident[]);
+    const duplicates = findDuplicateCandidates({ incident_latitude: params.incidentLatitude, incident_longitude: params.incidentLongitude, description: params.description, category }, (nearby ?? []) as Incident[]);
     const routing = planResponse({ ...params, priorityBand: priorityResult.priorityBand, hasDuplicateCandidates: duplicates.some(d => d.duplicateConfidence !== "unlikely"), departments: departments ?? [] });
     const now = new Date().toISOString();
     const incident: Omit<Incident, "id"> & { id: string } = {
@@ -249,7 +266,7 @@ export class Backend {
       title:
         params.aiAssessment?.title ??
         `Disaster Report: ${params.description.slice(0, 60)}`,
-      category: params.aiAssessment?.category ?? "other",
+      category,
       latitude: params.incidentLatitude,
       longitude: params.incidentLongitude,
       description: params.description,
@@ -264,10 +281,10 @@ export class Backend {
       review_required: routing.mode === "needs_review",
       routing_decision: routing,
       verification_status: "unverified",
-      status: routing.mode === "automatic" ? "assigned" : "open",
-      primary_department_id: routing.mode === "automatic" ?
+      status: routing.assigned_codes.length ? "assigned" : "open",
+      primary_department_id: routing.assigned_codes.length ?
         departments?.find(
-          (d) => d.code === recommendation.primaryDepartmentCode,
+          (d) => d.code === (routing.assigned_codes.includes(recommendation.primaryDepartmentCode) ? recommendation.primaryDepartmentCode : routing.assigned_codes[0]),
         )?.id ?? null : null,
       created_at: now,
       updated_at: now,
@@ -289,6 +306,9 @@ export class Backend {
       verification_status: "unverified",
       created_at: now,
     };
+    const readiness = await this.admin.rpc("civiscope_deployment_status");
+    if (readiness.error || readiness.data?.schema_version !== "20261105" || !readiness.data?.report_delivery_installed)
+      throw new ApiError(503, "The database needs the department-delivery and deployment-readiness migrations through 20261105. Your report has not been submitted; keep this form open and retry after setup.");
     const { error } = await this.admin.rpc("civiscope_submit_report", {
       report_data: report,
       incident_data: incident,
@@ -345,6 +365,13 @@ export class Backend {
     notes?: string,
   ) {
     this.adminOnly();
+    if (this.actor.demo) {
+      const incident = getStore().incidents.find(i => i.id === id);
+      if (!incident) throw new ApiError(404, "Incident not found.");
+      if (incident.status === "closed") throw new ApiError(409, "This incident is closed.");
+      if (!SEED_DEPARTMENTS.some(d => d.id === departmentId && d.code !== "CONTROL_ROOM"))
+        throw new ApiError(400, "Select an available response department.");
+    }
     return this.actor.demo
       ? IncidentService.assignDepartment(
           id,
@@ -427,12 +454,14 @@ export class Backend {
     status: "verified" | "flagged" | "rejected",
   ) {
     this.adminOnly();
+    if (this.actor.demo && !getStore().incidents.some(i => i.id === id)) throw new ApiError(404, "Incident not found.");
     return this.actor.demo
       ? IncidentService.verifyIncident(id, status, this.actor.profile.id)
       : this.command("verify", id, { status });
   }
   async overridePriority(id: string, score: number, reason: string) {
     this.adminOnly();
+    if (this.actor.demo && !getStore().incidents.some(i => i.id === id)) throw new ApiError(404, "Incident not found.");
     return this.actor.demo
       ? IncidentService.overridePriority(
           id,
@@ -505,6 +534,8 @@ export class Backend {
   }
   async confirmDuplicate(reportId: string, targetIncidentId: string) {
     this.adminOnly();
+    if (this.actor.demo && (!getStore().reports.some(r => r.id === reportId) || !getStore().incidents.some(i => i.id === targetIncidentId)))
+      throw new ApiError(404, "Report or target incident not found.");
     return this.actor.demo
       ? IncidentService.confirmDuplicate(
           reportId,
@@ -515,6 +546,7 @@ export class Backend {
   }
   async keepSeparate(reportId: string) {
     this.adminOnly();
+    if (this.actor.demo && !getStore().reports.some(r => r.id === reportId)) throw new ApiError(404, "Report not found.");
     return this.actor.demo
       ? IncidentService.keepSeparate(reportId, this.actor.profile.id)
       : this.command("separate", reportId, {});

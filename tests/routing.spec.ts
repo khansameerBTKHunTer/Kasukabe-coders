@@ -1,9 +1,57 @@
 import { test, expect, type Page } from "@playwright/test";
 
 async function login(page: Page, name: string) {
-  expect((await page.request.post("/api/demo/session", { data: { email: `${name}@civiscope.demo`, password: "CiviscopeDemo!2026" } })).ok()).toBeTruthy();
+  expect((await page.request.post("/api/demo/session", { data: { email: `${name}@civiscope.demo`, password: "1234" } })).ok()).toBeTruthy();
   await page.goto("/");
 }
+
+test("a citizen fire report reaches Fire without AI or an admin assigning it", async ({ page }) => {
+  await login(page, "admin");
+  expect((await page.request.post("/api/seed/reset")).ok()).toBeTruthy();
+  await login(page, "citizen");
+  await page.route("**/api/geocode/search", route => route.fulfill({ json: { results: [
+    { address: "Neelasandra, Bengaluru, Karnataka", lat: 12.952, lng: 77.615 },
+  ] } }));
+  await page.route("**/api/ai/analyze", route => route.fulfill(
+    route.request().method() === "GET" ? { json: { configured: false } } :
+      { status: 503, json: { success: false, error: "Vision is unavailable; continue with typed observations." } },
+  ));
+  await page.getByLabel("Incident photograph", { exact: true }).setInputFiles({
+    name: "fire.png", mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=", "base64"),
+  });
+  await page.getByLabel("Visible damage", { exact: true }).fill("The apartment building is on fire and flames are visible from the windows.");
+  await page.getByLabel("Assistance required", { exact: true }).fill("Fire suppression and rescue needed immediately.");
+  await page.getByRole("searchbox", { name: "Search incident address" }).fill("Neelasandra, Bengaluru");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByTestId("selected-address")).toContainText("Neelasandra");
+  const submitted = page.waitForResponse(r => r.url().endsWith("/api/incidents") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Submit Emergency Report", exact: true }).last().click();
+  const response = await submitted;
+  expect(response.status()).toBe(201);
+  const { incident } = await response.json();
+  expect(incident.ai_assessment).toBeNull();
+  expect(incident.category).toBe("fire");
+  expect(incident.status).toBe("assigned");
+  expect(incident.routing_decision.assigned_codes).toEqual(expect.arrayContaining(["FIRE_RESCUE", "MEDICAL"]));
+  await expect(page.getByText(/Response teams have received your report/)).toBeVisible();
+
+  await login(page, "fire");
+  await expect(page.getByRole("button", { name: `Open incident: ${incident.title}`, exact: true })).toBeVisible();
+  const fireIncident = await page.request.get(`/api/incidents/${incident.id}`);
+  expect(fireIncident.ok()).toBeTruthy();
+  const fireData = (await fireIncident.json()).incident;
+  expect(fireData.reports).toHaveLength(1);
+  expect(fireData.assignments).toHaveLength(1);
+  expect(fireData.assignments[0].department.code).toBe("FIRE_RESCUE");
+  await page.getByRole("button", { name: `Open incident: ${incident.title}`, exact: true }).click();
+  await expect(page.getByRole("button", { name: "Accept assignment", exact: true })).toBeVisible();
+
+  await login(page, "admin");
+  expect((await page.request.get(`/api/incidents/${incident.id}`)).ok()).toBeTruthy();
+  await login(page, "power");
+  expect((await page.request.get(`/api/incidents/${incident.id}`)).status()).toBe(404);
+});
 
 test("routing exceptions, NGO response, rework and admin verification persist", async ({ page }) => {
   await login(page, "admin");
@@ -88,5 +136,32 @@ test("all India relief demo accounts reach their own department portals", async 
     await login(page, email);
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Open incident:/ })).toHaveCount(0);
+  }
+});
+
+test("an already-open Fire portal receives new citizen reports when refocused", async ({ page, browser }) => {
+  await login(page, "admin");
+  expect((await page.request.post("/api/seed/reset")).ok()).toBeTruthy();
+  const fireContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const firePage = await fireContext.newPage();
+    await login(firePage, "fire");
+    await expect(firePage.getByRole("heading", { name: "Fire & Emergency Services", exact: true })).toBeVisible();
+    await login(page, "citizen");
+    const image = await page.request.post("/api/uploads", { multipart: { file: {
+      name: "new-fire.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jp1sAAAAASUVORK5CYII=", "base64"),
+    } } });
+    expect(image.status()).toBe(201);
+    const photo = await image.json();
+    const submission = await page.request.post("/api/incidents", { data: {
+      imagePath: photo.imagePath, description: "Flames visible from the warehouse roof near the bridge", assistanceNeeded: "Fire suppression", incidentLatitude: 11.5, incidentLongitude: 77.5, sourceType: "on_site", immediateDanger: "yes",
+    } });
+    expect(submission.status()).toBe(201);
+    const { incident } = await submission.json();
+    await firePage.bringToFront();
+    await firePage.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(firePage.getByRole("button", { name: `Open incident: ${incident.title}`, exact: true })).toBeVisible();
+  } finally {
+    await fireContext.close();
   }
 });

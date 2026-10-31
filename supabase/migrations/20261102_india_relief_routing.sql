@@ -111,17 +111,13 @@ BEGIN
  IF (report_data->>'reporter_id')::uuid IS DISTINCT FROM actor_id OR report_data->>'incident_id' IS DISTINCT FROM incident_data->>'id' THEN
   RAISE EXCEPTION 'Report ownership does not match actor' USING ERRCODE='42501'; END IF;
  new_id := (incident_data->>'id')::uuid;
- routing := COALESCE(NULLIF(incident_data->'routing_decision','null'::jsonb),jsonb_build_object('mode','needs_review','suggested_codes','[]'::jsonb,'assigned_codes','[]'::jsonb,'reasons',jsonb_build_array('Routing requires an admin decision.'),'policy_version','india-relief-v1'));
+ routing := COALESCE(NULLIF(incident_data->'routing_decision','null'::jsonb),jsonb_build_object('mode','needs_review','suggested_codes','[]'::jsonb,'assigned_codes','[]'::jsonb,'reasons',jsonb_build_array('Routing requires an admin decision.'),'policy_version','india-relief-v2'));
  ai := incident_data->'ai_assessment';
  IF routing->>'mode' NOT IN ('automatic','needs_review') THEN RAISE EXCEPTION 'Invalid routing decision'; END IF;
  IF routing->>'mode'='automatic' THEN
   IF ai IS NULL OR ai='null'::jsonb OR COALESCE((ai->>'confidence')::numeric,0)<0.8
-    OR COALESCE((ai->>'human_review_required')::boolean,true)
     OR COALESCE(ai->>'category','other')='other' OR ai->>'category' IS DISTINCT FROM incident_data->>'category'
-    OR ai->>'severity' IN ('high','critical') OR incident_data->>'priority_band' IN ('High','Critical')
-    OR COALESCE((incident_data->>'priority_score')::numeric,0)>=60
-    OR COALESCE(report_data->>'immediate_danger','unknown')<>'no' OR report_data->>'source_type'='news_public'
-    OR jsonb_array_length(COALESCE(ai->'life_risk_indicators','[]'::jsonb))>0
+    OR report_data->>'source_type'='news_public'
     OR jsonb_array_length(COALESCE(routing->'assigned_codes','[]'::jsonb))=0
     OR routing->'assigned_codes' IS DISTINCT FROM routing->'suggested_codes' THEN
       RAISE EXCEPTION 'Automatic routing does not meet review requirements'; END IF;
@@ -146,7 +142,7 @@ BEGIN
  INSERT INTO public.activity_logs (incident_id,actor_id,action,reason,new_value)
  VALUES (new_id,actor_id,'report_created','Report received; evidence remains unverified',jsonb_build_object('report_id',report_data->>'id'));
  INSERT INTO public.activity_logs (incident_id,actor_id,action,reason,new_value)
- VALUES (new_id,NULL,CASE WHEN routing->>'mode'='automatic' THEN 'response_auto_assigned' ELSE 'routing_review_required' END,'AI and capability routing policy india-relief-v1',routing);
+ VALUES (new_id,NULL,CASE WHEN routing->>'mode'='automatic' THEN 'response_auto_assigned' ELSE 'routing_review_required' END,'AI and capability routing policy india-relief-v2',routing);
 END;
 $$;
 CREATE OR REPLACE FUNCTION public.civiscope_command(command text, target_id uuid, payload jsonb, actor_id uuid)

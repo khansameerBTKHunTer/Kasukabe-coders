@@ -7,7 +7,7 @@ const AssignDepartmentSchema = z.object({
   // Seed departments use UUID-shaped identifiers without RFC version bits.
   departmentId: z.guid(),
   assignedBy: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 export async function POST(

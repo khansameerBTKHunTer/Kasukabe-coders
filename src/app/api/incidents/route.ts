@@ -3,22 +3,23 @@ import { getBackend } from "@/lib/backend";
 import { apiError } from "@/lib/auth/server";
 import { analyzeUploadedPhoto } from "@/lib/image-analysis";
 import { z } from "zod";
+export const maxDuration = 60;
 
 const ReportSubmitSchema = z.object({
-  imagePath: z.string().min(1, "Image is required"),
+  imagePath: z.string().min(1, "Image is required").max(600),
   description: z
     .string()
     .trim()
-    .min(10, "Description must be at least 10 characters"),
+    .min(10, "Description must be at least 10 characters").max(4000),
   incidentLatitude: z.number().min(-90).max(90),
   incidentLongitude: z.number().min(-180).max(180),
-  reporterLatitude: z.number().nullable().optional(),
-  reporterLongitude: z.number().nullable().optional(),
+  reporterLatitude: z.number().min(-90).max(90).nullable().optional(),
+  reporterLongitude: z.number().min(-180).max(180).nullable().optional(),
   sourceType: z.enum(["on_site", "field_report", "news_public"]),
   assistanceNeeded: z
     .string()
     .trim()
-    .min(3, "Assistance needed must be specified"),
+    .min(3, "Assistance needed must be specified").max(2000),
   reportedPeopleAffected: z.number().int().nonnegative().nullable().optional(),
   immediateDanger: z.enum(["yes", "no", "unknown"]),
   reporterId: z.string().nullable().optional(),
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
       reporterId,
     } = validated.data;
 
-    // Run AI analysis if OpenRouter key is available
+    // Visual analysis is optional; clear report text can still route departments.
     let aiAssessment = null;
     let aiWarning: string | null = null;
 
@@ -110,8 +111,8 @@ export async function POST(req: NextRequest) {
           aiResult.error ||
           "AI visual assessment could not be generated; report preserved for manual inspection.";
       }
-    } catch (e: any) {
-      aiWarning = `AI analysis exception: ${e.message}`;
+    } catch {
+      aiWarning = "Photo analysis is unavailable. Your reported observations will still be used for department routing.";
     }
 
     // Submit report, calculate deterministic priority, and check duplicates

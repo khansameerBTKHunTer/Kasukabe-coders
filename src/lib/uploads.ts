@@ -6,6 +6,7 @@ import type { Actor } from "@/lib/auth/server";
 import { ApiError } from "@/lib/auth/server";
 import { EVIDENCE_BUCKET } from "./backend";
 import { createAdminClient } from "./supabase/admin";
+import { MAX_PHOTO_BYTES, PHOTO_TYPES, validatePhotoBytes } from "./photo-validation";
 const directory = join(tmpdir(), "civiscope-demo-evidence");
 export async function readDemoUpload(
   id: string,
@@ -19,25 +20,10 @@ export async function readDemoUpload(
   }
 }
 export async function savePhoto(actor: Actor, file: File) {
-  if (file.size === 0 || file.size > 8 * 1024 * 1024)
+  if (file.size === 0 || file.size > MAX_PHOTO_BYTES)
     throw new ApiError(400, "Choose a photograph no larger than 8 MB.");
   const buffer = Buffer.from(await file.arrayBuffer());
-  const type =
-    buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
-      ? "image/jpeg"
-      : buffer
-            .subarray(0, 8)
-            .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-        ? "image/png"
-        : buffer.subarray(0, 4).toString() === "RIFF" &&
-            buffer.subarray(8, 12).toString() === "WEBP"
-          ? "image/webp"
-          : null;
-  if (!type || file.type !== type)
-    throw new ApiError(
-      400,
-      "Upload a valid JPEG, PNG, or WebP photograph. SVG and other file types are not supported.",
-    );
+  const type = validatePhotoBytes(buffer, file.type);
   const id = randomUUID();
   if (actor.demo) {
     await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -73,4 +59,16 @@ export async function savePhoto(actor: Actor, file: File) {
     previewUrl: signed.data?.signedUrl ?? "",
     storage: "supabase",
   };
+}
+
+export async function preparePhotoUpload(actor: Actor, contentType: string, size: number) {
+  if (!PHOTO_TYPES.includes(contentType as typeof PHOTO_TYPES[number]) || !Number.isInteger(size) || size <= 0 || size > MAX_PHOTO_BYTES)
+    throw new ApiError(400, "Choose a JPEG, PNG, or WebP photograph up to 8 MB.");
+  if (actor.demo) return { uploadMode: "multipart" as const };
+  const path = `${actor.profile.id}/${randomUUID()}.${contentType === "image/jpeg" ? "jpg" : contentType.split("/")[1]}`;
+  const { data, error } = await createAdminClient().storage.from(EVIDENCE_BUCKET)
+    .createSignedUploadUrl(path, { upsert: false });
+  if (error || !data)
+    throw new ApiError(503, "Unable to prepare the photograph upload. Check the evidence bucket and retry.");
+  return { uploadMode: "direct" as const, uploadUrl: data.signedUrl, imagePath: `supabase://${EVIDENCE_BUCKET}/${path}` };
 }

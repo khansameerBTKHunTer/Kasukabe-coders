@@ -11,6 +11,7 @@ const Schema = z.object({
   assistanceNeeded: z.string().max(2000).default(""),
 });
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   try {
     await requireActor(request);

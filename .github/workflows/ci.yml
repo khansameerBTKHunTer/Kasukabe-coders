@@ -1,0 +1,35 @@
+name: Project checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3099
+      AI_PROVIDER: gemini
+      GEMINI_API_KEY: ''
+      OPENROUTER_API_KEY: ''
+      CIVISCOPE_DEMO_MODE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm rebuild esbuild
+      - run: npm run check
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser:local
+      - run: npm audit --omit=dev --audit-level=moderate
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-results
+          path: test-results/
+          retention-days: 7

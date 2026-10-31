@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 async function login(page: Page, name: string) {
-  expect((await page.request.post('/api/demo/session', { data: { email: `${name}@civiscope.demo`, password: 'CiviscopeDemo!2026' } })).ok()).toBeTruthy();
+  expect((await page.request.post('/api/demo/session', { data: { email: `${name}@civiscope.demo`, password: '1234' } })).ok()).toBeTruthy();
   await page.goto('/');
 }
 async function transition(page: Page, action: string) {

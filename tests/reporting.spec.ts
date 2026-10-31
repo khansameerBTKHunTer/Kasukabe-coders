@@ -17,11 +17,11 @@ async function dropPin(page: Page) {
 }
 test.beforeEach(async ({ page }) => {
   await page.request.post("/api/demo/session", {
-    data: { email: "admin@civiscope.demo", password: "CiviscopeDemo!2026" },
+    data: { email: "admin@civiscope.demo", password: "1234" },
   });
   await page.request.post("/api/seed/reset");
   await page.request.post("/api/demo/session", {
-    data: { email: "citizen@civiscope.demo", password: "CiviscopeDemo!2026" },
+    data: { email: "citizen@civiscope.demo", password: "1234" },
   });
   await page.route("**/api/geocode", (route) =>
     route.fulfill({

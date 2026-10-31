@@ -1,4 +1,7 @@
 # CIVISCOPE — Damage Mapper
+
+Deployment setup, required SQL migrations, environment checks and hosted acceptance: [Deployment guide](docs/DEPLOYMENT.md).
+
 ### AI-Powered Disaster Damage Assessment & Multi-Agency Response Coordination
 
 > **Tagline:** *From Damage Detection to Human Response.*
@@ -22,7 +25,7 @@ Damage Mapper (CIVISCOPE) is an AI-assisted disaster management platform that co
 ### Core Innovations:
 1. **Explainable Deterministic Priority Scoring:** AI vision provides provisional observations; priority is strictly computed via a deterministic 7-factor mathematical formula (totaling 100% normalized weight).
 2. **Duplicate Incident Correlation:** Automatic candidate matching within a 150m spatial radius using the Haversine formula, comparing hazard categories and textual keywords, with human confirmation (Confirm Duplicate vs Keep Separate).
-3. **Automatic response routing:** Validated AI suggestions and mandatory capability rules assign all suitable teams for clear routine reports. Uncertain, urgent, duplicate or specialist cases enter an admin queue. Completed response work needs admin verification; admins can request further work. See [India relief routing and database update](docs/INDIA_RELIEF_ROUTING.md).
+3. **Automatic response routing:** Validated AI suggestions and mandatory capability rules immediately assign suitable professional teams for clear incidents, including urgent building fires. Ambiguous, duplicate, public-source or specialist cases enter an admin queue. Completed response work needs admin verification; admins can request further work. See [India relief routing and database update](docs/INDIA_RELIEF_ROUTING.md).
 4. **Full-width light interface:** Responsive reporting and operations interface built with Next.js 15 App Router, Tailwind CSS, Lucide icons, and interactive Leaflet map integration.
 
 ---
@@ -85,7 +88,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-> **Manual triage:** If the selected vision provider key is not configured, real-mode reports are saved for human review without an invented AI assessment. Real mode requires Supabase and never silently falls back to demo data. Offline synchronization is not implemented.
+> **Vision fallback:** If the vision provider is unavailable, explicit reported hazards still create professional department assignments while admin evidence review remains pending. Ambiguous reports await triage; no AI assessment is invented. Real mode requires Supabase and never silently falls back to demo data. Offline synchronization is not implemented.
 
 ---
 
@@ -146,7 +149,7 @@ npm install
 npm run dev:demo
 ```
 
-Open the Local URL printed in the terminal and visit `/demo-login`. Use `citizen@civiscope.demo` (or another account in [the guide](docs/INTEGRATION_HANDOFF.md)) with password `CiviscopeDemo!2026`. Demo accounts access temporary fictional data only.
+Open the Local URL printed in the terminal and visit `/demo-login`. Use `citizen@civiscope.demo` (or another account in [the guide](docs/INTEGRATION_HANDOFF.md)) with the shared four-digit demo password `1234`. Demo accounts access temporary fictional data only.
 
 For real accounts, configure Supabase and apply the reviewed integration migration as documented, then run `npm run dev` with `CIVISCOPE_DEMO_MODE=false`.
 
@@ -160,9 +163,9 @@ The project uses patched Next.js 15 and Zod 4 releases. The PostCSS override kee
 
 ### Run Full Test Suite:
 ```bash
-npm run test:engine
-# Or run complete verification
-node --import tsx scripts/verify-all.ts
+npm run check
+npm run build
+npm run test:browser:local
 ```
 
 ### Start Development Server:
@@ -218,9 +221,9 @@ node --import tsx scripts/verify-workflows-inproc.ts
 npm run build
 npm run test:startup
 
-# With the app running in another terminal:
+# Install Chromium once if needed; the local command manages its demo server:
 npx playwright install chromium
-TEST_BASE_URL=http://localhost:3001 npm run test:browser
+npm run test:browser:local
 ```
 
 Browser tests reset the simulated scenario; use a local demo instance. They check all portals at 375, 768, and 1440 pixels, runtime errors during role changes, map markers, filters, activity updates, PDF downloads, current production KPIs, and retry behavior. Screenshots and failure traces are saved in `test-results/`. External OpenStreetMap tile availability and live AI-provider/Supabase operations are not covered by these automated checks.

@@ -8,7 +8,7 @@ The project owner chose to run the SQL in Supabase. No hosted schema changes hav
 
 1. In Supabase, open the correct project and **SQL Editor → New query**.
 2. Apply any missing earlier migrations, in order: `20241030_initial_schema.sql`, `20261031_roles_and_access.sql`, then `20261101_portal_integration.sql`. Do not rerun migrations already applied.
-3. Open `supabase/migrations/20261102_india_relief_routing.sql` locally. Copy the **entire SQL contents**, including `BEGIN;` and `COMMIT;`, into the editor and run them. Pasting the filename is not valid SQL. The update is transactional: errors roll back the update.
+3. Open `supabase/migrations/20261102_india_relief_routing.sql` locally. Copy the **entire SQL contents**, including `BEGIN;` and `COMMIT;`, into the editor and run them. Then run the contents of `supabase/migrations/20261103_urgent_professional_auto_routing.sql`. Pasting either filename is not valid SQL. The updates are transactional: errors roll back the update.
 4. Run this read-only check:
 
 ```sql
@@ -43,11 +43,15 @@ The category names follow the Indian disaster-response context: [NDRF](https://n
 
 ## Automatic routing and exceptions
 
-Automatic assignment requires an AI assessment with confidence **at least 80%**, a clear supported category, no model request for human review, no life-risk indicators, low/medium severity and priority, and an explicit report of no immediate danger. All suggested codes must be recognized and available. Public/news evidence, likely duplicate incidents within 150 metres, unavailable teams and specialist-force activation require admin review.
+Clear incidents with a confident AI assessment are assigned automatically. If vision fails or confidence is low, explicit citizen observations provide a conservative routing fallback: building fire → Fire & Emergency Services and Medical; electrical hazards → DISCOM; road blockage → Municipal / Public Works; medical emergencies → Medical. These professional teams receive pending assignments even while `routing_decision.mode='needs_review'`. Admin review and dispatch are independent: AI uncertainty, unknown optional team names, specialist activation or a missing secondary department must not prevent an available mandatory professional team from receiving its incident. Evidence is never marked verified by routing. Public/news reports and likely duplicates still await routing review; volunteers and restricted specialist forces are not dispatched through this fallback.
 
 Category rules always include the relevant professional team and required secondary teams. Recognized AI suggestions supplement those rules; unknown names cause review. Legacy names such as “Fire & Rescue” remain supported as aliases. Volunteers, NGOs and Civil Defence support are excluded from automatic hazardous rescue, electrical isolation, fire suppression and unsafe water operations. Unsafe support suggestions enter the admin queue so the coordinator can establish a safe staging area.
 
 The report, incident, all automatic assignments and audit events are written in one server-only database transaction. Automatic assignments have `assignment_source='automatic'`, `assigned_by=NULL`, and start as `pending`; they are not acknowledgements. Manual assignments retain the authenticated administrator's ID. The stored `routing_decision` records the policy version, selected/suggested codes and reasons. Reporters cannot supply their own AI assessment, assignment list or trusted actor ID to the API.
+
+For a Supabase project that already ran the original routing migration, run `20261103_urgent_professional_auto_routing.sql` once in the SQL Editor. New projects should run both `20261102_india_relief_routing.sql` and then `20261103_urgent_professional_auto_routing.sql` in filename order.
+
+Then run `20261104_department_report_delivery.sql`. It enables professional assignments while evidence/routing review remains pending and recovers older unassigned first-hand fire reports. The recovery leaves closed, flagged/rejected, manually assigned, declined and likely duplicate incidents unchanged. Run the SQL **contents**, not the filename. This migration is tested locally; it has not been applied to your hosted project by Codex.
 
 In **Review queue → Needs admin routing**, choose the required teams, enter routing notes, then click **Complete routing review**. Rejection by any team creates another routing exception. Existing manual dispatch and priority controls remain available.
 
@@ -61,6 +65,6 @@ In **Review queue → Needs admin routing**, choose the required teams, enter ro
 
 ## Demo accounts and verification
 
-Start with `npm run dev:demo`, open `/demo-login`, and use password `CiviscopeDemo!2026`. Existing citizen/admin/fire/power/municipal/medical demo emails still work. Added accounts are `sdrf@civiscope.demo`, `ndrf@civiscope.demo`, `police@civiscope.demo`, `civil@civiscope.demo`, `ngo@civiscope.demo` and `volunteer@civiscope.demo`. These accounts do not exist in Supabase Auth unless separately created there.
+Start with `npm run dev:demo`, open `/demo-login`, and use the shared four-digit password `1234`. Existing citizen/admin/fire/power/municipal/medical demo emails still work. Added accounts are `sdrf@civiscope.demo`, `ndrf@civiscope.demo`, `police@civiscope.demo`, `civil@civiscope.demo`, `ngo@civiscope.demo` and `volunteer@civiscope.demo`. These accounts do not exist in Supabase Auth unless separately created there.
 
 Run `npm run test:routing` for policy and repository tests, `npm run test:database` for actual isolated Postgres/RLS/RPC tests, and the browser suite against a demo server. Browser tests disable both vision keys; mocked vision tests cover the provider contract without paid requests. Hosted Supabase behavior must be checked after the owner applies the migration.

@@ -259,7 +259,8 @@ async function main() {
 
     const actions = logs.map(l => l.action);
     if (!actions.includes('report_created')) throw new Error('Missing report_created event');
-    if (!actions.includes('department_assigned')) throw new Error('Missing department_assigned event');
+    if (!actions.includes('department_assigned') && !actions.includes('response_auto_assigned'))
+      throw new Error('Missing manual or automatic dispatch audit event');
     if (!actions.includes('assignment_acknowledged')) throw new Error('Missing assignment_acknowledged event');
     if (!actions.includes('priority_override')) throw new Error('Missing priority_override event');
   });

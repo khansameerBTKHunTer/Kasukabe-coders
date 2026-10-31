@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { findDuplicateCandidates } from "@/lib/duplicate-detector";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 // Dynamically import Leaflet IncidentMap with ssr: false
 const IncidentMap = dynamic(
@@ -191,6 +192,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
   useEffect(() => {
     fetchIncidentsAndStats();
   }, []);
+  useLiveRefresh(fetchIncidentsAndStats);
 
   // Filter incidents
   const filteredIncidents = incidents.filter((incident) => {
@@ -257,7 +259,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
+      <div className="portal-hero flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-600">
             Lakshmipur District
@@ -486,7 +488,7 @@ export const ControlRoomDashboard: React.FC<ControlRoomProps> = ({
             <option value="automatic">Automatically assigned</option>
           </select>
         </label>
-        <span className="text-xs text-slate-500">Routine cases are assigned automatically. Review exceptions and verify completed work here.</span>
+        <span className="text-xs text-slate-500">Clear incidents, including urgent hazards, are dispatched automatically. Review exceptions and verify completed work here.</span>
       </div>
 
       {/* Main Command Center Grid: Map (Center-Left) + Ranked Queue & Detail Drawer (Right) */}

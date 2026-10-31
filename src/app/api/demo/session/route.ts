@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createDemoToken,
   DEMO_COOKIE,
+  DEMO_PASSWORD,
   demoEnabled,
   readDemoProfile,
 } from "@/lib/auth/demo";
 import { SEED_PROFILES } from "@/lib/data-store";
 import { apiError, assertSameOrigin } from "@/lib/auth/server";
+import { z } from "zod";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   return NextResponse.json(
@@ -25,11 +27,13 @@ export async function POST(request: NextRequest) {
         },
         { status: 403 },
       );
-    const { email, password } = await request.json();
+    const input = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).max(128) }).safeParse(await request.json());
+    if (!input.success) return NextResponse.json({ error: "Enter a valid demo email and password." }, { status: 400 });
+    const { email, password } = input.data;
     const profile = SEED_PROFILES.find(
       (p) => p.email === String(email).trim().toLowerCase(),
     );
-    if (!profile || password !== "CiviscopeDemo!2026")
+    if (!profile || password !== DEMO_PASSWORD)
       return NextResponse.json(
         { error: "Incorrect demo email or password." },
         { status: 401 },

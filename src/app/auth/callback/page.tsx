@@ -64,7 +64,7 @@ export default function AuthCallback() {
     })().catch((error) => setError(error.message));
   }, [router, auth.configurationReady, auth.demoEnabled, auth.supabase]);
   return (
-    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-slate-200 p-6">
+    <div className="glass-panel mx-auto max-w-md space-y-4 rounded-xl border border-slate-200 p-6">
       {error ? (
         <>
           <p role="alert" className="text-red-700">

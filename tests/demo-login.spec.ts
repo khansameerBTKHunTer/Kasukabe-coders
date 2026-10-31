@@ -11,7 +11,7 @@ test("dummy login uses an HttpOnly local session, restores on refresh, and never
   await page
     .getByLabel("Email", { exact: true })
     .fill("citizen@civiscope.demo");
-  await page.getByLabel("Password", { exact: true }).fill("CiviscopeDemo!2026");
+  await page.getByLabel("Password", { exact: true }).fill("1234");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Report an incident" }),
@@ -31,7 +31,7 @@ test("dummy login uses an HttpOnly local session, restores on refresh, and never
 test("incorrect dummy password cannot open Control Room", async ({ page }) => {
   await page.goto("/demo-login");
   await page.getByLabel("Email", { exact: true }).fill("admin@civiscope.demo");
-  await page.getByLabel("Password", { exact: true }).fill("wrong-password");
+  await page.getByLabel("Password", { exact: true }).fill("0000");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("p[role=alert]")).toContainText(
     "Incorrect demo email or password",
